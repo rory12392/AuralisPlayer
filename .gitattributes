@@ -1,0 +1,11 @@
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary
+# 測試樣本保持原樣（foobar2000 產生的位元組，含 CRLF 與二進位）
+tests/fixtures/** -text
+# 附帶的字型與授權原文保持原樣（授權檔照抄上游，含 CRLF 與行尾空白）
+src/ui/fonts/** -text -whitespace
+docs/evidence/*.csv merge=union

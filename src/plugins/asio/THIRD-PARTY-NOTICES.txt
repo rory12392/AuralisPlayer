@@ -1,0 +1,79 @@
+AuralisPlayer ASIO output plugin - Third-Party Notices
+=====================================================
+
+This file covers the AuralisPlayer ASIO® output plugin package
+(AuralisPlayer-<version>-plugin-asio-win64.zip). ASIO is a registered
+trademark of Steinberg Media Technologies GmbH.
+
+
+1. Distribution terms of this package
+-------------------------------------
+
+This package contains the ASIO output plugin (AuralisAsio\AuralisAsio.dll
+and AuralisAsio\plugin.json). The same plugin is preinstalled with the
+AuralisPlayer program packages; this package is for reinstalling it. It is
+distributed as a whole under the GNU General Public License, version 3
+only (GPL-3.0-only, full text in LICENSE):
+
+  - AuralisPlayer, including this plugin, is licensed under GPLv3.
+  - The ASIO SDK 2.3.4 by Steinberg Media Technologies GmbH, compiled into
+    AuralisAsio.dll, is used under GPLv3, option b) of the SDK's license
+    file (licenses/ASIO-SDK.txt, which offers the Steinberg ASIO License
+    or GPLv3). See section 3.1.
+  - The ASIO Compatible logo files (AuralisAsio\logo-dark.svg,
+    AuralisAsio\logo-light.svg) are trademark artwork of Steinberg Media
+    Technologies GmbH, taken unmodified from the ASIO SDK 2.3.4. They are
+    NOT covered by GPLv3 and may only be used as described in the
+    "Steinberg ASIO Usage Guidelines" that come with the ASIO SDK (see
+    AuralisAsio\ASIO-LOGO-README.txt).
+
+The plugin works only with the AuralisPlayer version it was built with
+(the main program checks the plugin's SHA-256 before loading it). It uses
+the Qt and Microsoft Visual C++ runtime DLLs that come with or are required
+by the main program; those are not part of this package. Their notices are
+in the main program's THIRD-PARTY-NOTICES.txt.
+
+Corresponding Source. The Corresponding Source of this package consists of:
+  a) the AuralisPlayer source code at the exact commit this package was
+     built from, including the build and packaging scripts
+     (CMakeLists.txt, CMakePresets.json, vcpkg.json with its
+     builtin-baseline and the cmake/ folder);
+  b) the source code of the ASIO SDK 2.3.4 archive listed in section 3.1,
+     together with the vcpkg port files (portfile and patches) used to
+     build it, and the source code of the other components the plugin is
+     built with (Qt 6.11.3 qtbase), as listed in the main program's
+     THIRD-PARTY-NOTICES.txt.
+It is offered as attachments on the Release page of
+  https://github.com/rory12392/AuralisPlayer/releases
+next to the download of this package. The Release page names the commit
+this package was built from. The publisher of this package keeps these
+source archives available for as long as this package is offered for
+download; the upstream links in section 3 are for reference only.
+
+
+2. AuralisPlayer
+----------------
+
+Copyright (c) 2026 rory12392
+License: GNU General Public License, version 3 only (GPL-3.0-only, LICENSE)
+
+
+3. Third-party components
+-------------------------
+
+3.1 ASIO SDK 2.3.4
+    Archive used: ASIO-SDK_2.3.4_2025-10-15.zip
+      (https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip,
+      SHA-256 d5ebf0c20dd2c5f43771fd0c1418f4b361bf52434ee670097cfa6b3a335e2eca),
+      with the patch fix-new-delete-mismatch.patch of the vcpkg port
+      "asiosdk" 2.3.4#2:
+      https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/asiosdk
+    Copyright (c) 2025, Steinberg Media Technologies GmbH.
+    License: the SDK's LICENSE.txt (licenses/ASIO-SDK.txt) offers a) the
+    Steinberg ASIO License or b) the General Public License (GPL) Version
+    3; this plugin uses b) GPLv3 (LICENSE). The SDK host files
+    (host/asiodrivers.*, host/pc/asiolist.*, host/ginclude.h) carry their
+    own license text, reproduced in licenses/ASIO-SDK-host.txt.
+    The ASIO SDK is compiled into AuralisAsio.dll; no SDK files are
+    included in this package.
+    ASIO is a registered trademark of Steinberg Media Technologies GmbH.

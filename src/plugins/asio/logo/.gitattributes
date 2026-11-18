@@ -1,0 +1,2 @@
+# Steinberg 提供的標誌檔保持原樣（git 不正規化行尾與空白），雜湊和 ASIO SDK 封存裡的檔案相同
+*.svg -text -whitespace

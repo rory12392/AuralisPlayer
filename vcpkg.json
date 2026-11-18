@@ -1,0 +1,19 @@
+{
+  "name": "auralis-player",
+  "version": "0.1.0",
+  "builtin-baseline": "e54ef0fcc9a82033a61e51002552a910a5d57282",
+  "dependencies": [
+    "catch2",
+    { "name": "ffmpeg", "default-features": false, "features": ["avcodec", "avformat", "swresample"] },
+    "libebur128",
+    { "name": "sqlite3", "features": ["fts5"] },
+    "taglib",
+    "uchardet"
+  ],
+  "features": {
+    "asio": {
+      "description": "ASIO 外掛（AURALIS_WITH_ASIO=ON 時才安裝；Steinberg 專有／GPLv3 雙授權，本專案採 GPLv3，只編進 ASIO 外掛，主程式不連結）",
+      "dependencies": ["asiosdk"]
+    }
+  }
+}

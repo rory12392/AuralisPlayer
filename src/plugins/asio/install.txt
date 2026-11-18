@@ -1,0 +1,28 @@
+AuralisPlayer ASIO® 輸出外掛：安裝方式
+=====================================
+
+這個外掛讓 AuralisPlayer 可以用 ASIO 輸出（PCM 與原生 DSD）。
+AuralisPlayer 的 zip 與安裝檔已經內建同一個外掛，平常不用另外安裝；這個包是給重新安裝用的。
+只能用在和它同一個版本的 AuralisPlayer。
+
+安裝
+1. 解開這個 zip（任何位置都可以，例如「下載」資料夾）。
+2. 開啟 AuralisPlayer，到「設定」→「外掛」，按「匯入」。
+3. 選解開後 AuralisAsio 資料夾裡的 plugin.json。
+4. 程式確認是這一版的官方外掛後安裝；重新啟動 AuralisPlayer 後 ASIO 就能用。
+5. 在輸出面板或「設定」→「輸出」選 ASIO 驅動。電腦要先裝好 DAC 廠商的 ASIO 驅動，
+   沒有驅動時清單不會出現 ASIO。
+
+移除或停用
+- 「設定」→「外掛」可以停用，重新啟動後生效。內建的那一份不能移除；移除只會刪掉自己匯入的這一份，
+  之後改用內建的。
+
+外掛顯示「版本不符」或「檔案不符」時
+- 外掛和主程式的版本不同，或檔案被改過。請從 AuralisPlayer 的 Release 頁下載和主程式同一版的外掛，
+  再匯入一次。這時 WASAPI 輸出照常可用。
+
+授權
+- 這個外掛整包以 GPLv3 散布（LICENSE），內含 Steinberg ASIO SDK 2.3.4；詳見 THIRD-PARTY-NOTICES.txt。
+- AuralisAsio 資料夾裡的 ASIO Compatible 標誌（logo-dark.svg、logo-light.svg）是 Steinberg 的商標圖檔，
+  不屬於 GPLv3，只能照 Steinberg 的 ASIO 使用規範使用（ASIO-LOGO-README.txt）。
+- ASIO is a registered trademark of Steinberg Media Technologies GmbH.

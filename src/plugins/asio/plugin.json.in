@@ -1,0 +1,12 @@
+{
+    "id": "@AURALIS_ASIO_PLUGIN_ID@",
+    "name": "ASIO 輸出",
+    "type": "output",
+    "version": "@PROJECT_VERSION@",
+    "appVersion": { "min": "@PROJECT_VERSION@", "max": "@PROJECT_VERSION@" },
+    "abi": 1,
+    "dll": "AuralisAsio.dll",
+    "license": "GPL-3.0-only",
+    "url": "https://github.com/rory12392/AuralisPlayer",
+    "logo": { "dark": "logo-dark.svg", "light": "logo-light.svg" }
+}

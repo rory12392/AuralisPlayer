@@ -1,0 +1,4 @@
+#pragma code_page(65001)
+// 程式圖示（產生方式見 tools/make_app_icon.py）。
+// Qt 的 Windows 平台外掛替每個視窗類別載入名為 IDI_ICON1 的圖示，所以標題列與工作列也用它。
+IDI_ICON1 ICON "AuralisPlayer.ico"

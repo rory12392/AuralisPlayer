@@ -1,0 +1,99 @@
+﻿; AuralisPlayer 安裝檔（T-101）：CPack 的 NSIS 產生器用這個範本取代 CMake 內建的 NSIS.template.in
+; （cmake/AuralisPackaging.cmake 把本資料夾加進 CMAKE_MODULE_PATH）。@...@ 由 CPack 代入。
+; 內建範本是 Administrator 安裝、英文為主、帳號屬於系統管理員群組時改寫 HKLM，不符合需求，所以自己寫：
+; - 只裝給目前使用者（不需要系統管理員）：預設 %LOCALAPPDATA%\Programs\AuralisPlayer，登錄寫 HKCU
+; - 不安裝 portable.flag（資料在 %LOCALAPPDATA%\AuralisPlayer；cmake/installer/AuralisCPackPreBuild.cmake 從暫存區刪掉）
+; - 解除安裝只刪安裝時放的檔案與空資料夾，不碰使用者資料
+; 靜默安裝：AuralisPlayer-<版本>-win64-setup.exe /S /D=<資料夾>（/D 要放最後、不加引號）
+; 靜默解除安裝：<安裝資料夾>\Uninstall.exe /S
+
+  Unicode true
+
+  !define VERSION "@CPACK_PACKAGE_VERSION@"
+  !define INST_DIR "@CPACK_TEMPORARY_DIRECTORY@"
+  !define APP_NAME "@CPACK_NSIS_PACKAGE_NAME@"
+  !define APP_EXE "AuralisPlayer.exe"
+  !define UNINST_EXE "Uninstall.exe"
+  !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\@CPACK_PACKAGE_INSTALL_REGISTRY_KEY@"
+
+  !include "MUI2.nsh"
+
+  Name "${APP_NAME}"
+  OutFile "@CPACK_TOPLEVEL_DIRECTORY@/@CPACK_OUTPUT_FILE_NAME@"
+  SetCompressor /SOLID lzma
+  RequestExecutionLevel user
+  InstallDir "$LOCALAPPDATA\Programs\@CPACK_PACKAGE_INSTALL_DIRECTORY@"
+  ; 升級安裝時預設裝回上次的資料夾
+  InstallDirRegKey HKCU "${UNINST_KEY}" "InstallLocation"
+  ManifestDPIAware true
+  BrandingText "${APP_NAME} ${VERSION}"
+
+;--------------------------------
+; 介面
+
+  !define MUI_ICON "@CPACK_NSIS_MUI_ICON@"
+  !define MUI_UNICON "@CPACK_NSIS_MUI_UNIICON@"
+  !define MUI_ABORTWARNING
+  !define MUI_COMPONENTSPAGE_NODESC
+  !define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
+
+  !insertmacro MUI_PAGE_WELCOME
+  !insertmacro MUI_PAGE_LICENSE "@CPACK_RESOURCE_FILE_LICENSE@"
+  !insertmacro MUI_PAGE_COMPONENTS
+  !insertmacro MUI_PAGE_DIRECTORY
+  !insertmacro MUI_PAGE_INSTFILES
+  !insertmacro MUI_PAGE_FINISH
+
+  !insertmacro MUI_UNPAGE_CONFIRM
+  !insertmacro MUI_UNPAGE_INSTFILES
+
+  !insertmacro MUI_LANGUAGE "TradChinese"
+
+;--------------------------------
+; 安裝
+
+Section "AuralisPlayer（必要）" SecMain
+  SectionIn RO
+
+  ; 升級安裝：先用舊版的解除安裝程式刪掉舊版的檔案（只刪程式檔，使用者資料不在安裝資料夾裡），
+  ; 避免舊版多出來的 DLL 或外掛留在新版旁邊
+  IfFileExists "$INSTDIR\${UNINST_EXE}" 0 +2
+    ExecWait '"$INSTDIR\${UNINST_EXE}" /S _?=$INSTDIR'
+
+  SetOutPath "$INSTDIR"
+  @CPACK_NSIS_FULL_INSTALL@
+
+  WriteUninstaller "$INSTDIR\${UNINST_EXE}"
+  CreateShortCut "$SMPROGRAMS\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}"
+
+  ; 「設定 → 應用程式」的項目（HKCU：只有目前使用者看得到，不需要系統管理員）
+  WriteRegStr HKCU "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
+  WriteRegStr HKCU "${UNINST_KEY}" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKCU "${UNINST_KEY}" "Publisher" "@CPACK_PACKAGE_VENDOR@"
+  WriteRegStr HKCU "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${APP_EXE}"
+  WriteRegStr HKCU "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "${UNINST_KEY}" "UninstallString" '"$INSTDIR\${UNINST_EXE}"'
+  WriteRegStr HKCU "${UNINST_KEY}" "QuietUninstallString" '"$INSTDIR\${UNINST_EXE}" /S'
+  WriteRegDWORD HKCU "${UNINST_KEY}" "NoModify" 1
+  WriteRegDWORD HKCU "${UNINST_KEY}" "NoRepair" 1
+SectionEnd
+
+Section /o "桌面捷徑" SecDesktop
+  CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}"
+SectionEnd
+
+;--------------------------------
+; 解除安裝：只刪安裝時放的檔案（CPack 列出的清單）與變空的資料夾。
+; 音樂庫資料庫、設定、歌詞快取在 %LOCALAPPDATA%\AuralisPlayer，不在這裡，所以留著
+
+Section "Uninstall"
+@CPACK_NSIS_DELETE_FILES@
+@CPACK_NSIS_DELETE_DIRECTORIES@
+
+  Delete "$INSTDIR\${UNINST_EXE}"
+  RMDir "$INSTDIR"
+
+  Delete "$SMPROGRAMS\${APP_NAME}.lnk"
+  Delete "$DESKTOP\${APP_NAME}.lnk"
+  DeleteRegKey HKCU "${UNINST_KEY}"
+SectionEnd

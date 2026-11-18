@@ -1,0 +1,18 @@
+﻿REM GENRE "Soundtrack"
+REM DATE 2019
+REM DISCNUMBER 1
+PERFORMER "測試樂團"
+TITLE "雙語測試專輯：夜と朝"
+FILE "album.flac" WAVE
+  TRACK 01 AUDIO
+    TITLE "序曲：開始"
+    PERFORMER "測試樂團"
+    INDEX 01 00:00:00
+  TRACK 02 AUDIO
+    TITLE "夜明けの街を歩く"
+    PERFORMER "歌手 A"
+    INDEX 00 00:01:50
+    INDEX 01 00:02:00
+  TRACK 03 AUDIO
+    TITLE "終章 Ｅｎｄｉｎｇ"
+    INDEX 01 00:03:37

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- 測試名稱是中文：讓 CTest 傳進來的命令列參數（測試篩選）以 UTF-8 解讀，而不是系統的 ANSI 字碼頁 -->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings xmlns:ws19="http://schemas.microsoft.com/SMI/2019/WindowsSettings">
+      <ws19:activeCodePage>UTF-8</ws19:activeCodePage>
+    </windowsSettings>
+  </application>
+</assembly>

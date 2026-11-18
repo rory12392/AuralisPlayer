@@ -1,0 +1,89 @@
+# CI 只在發佈前與手動時跑（不設 push 到分支就觸發）。
+# 第三方 action 版本查證日期：2026-11-11（gh api repos/<owner>/<repo>/releases/latest）
+name: ci
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    env:
+      VCPKG_DEFAULT_TRIPLET: x64-windows
+      # 跑者的主控台是 cp1252，Python 腳本（token 檢查、測試用的 check_*.py）印中文會失敗
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: lukka/get-cmake@v4.4.5
+
+      # aqtinstall 3.3.0（install-qt-action 用的）裝不了 Qt 6.11 的新倉庫結構，改用自己的腳本；
+      # aqt 支援後改回 jurplel/install-qt-action
+      - name: 快取 Qt 6.11.3
+        id: qt-cache
+        uses: actions/cache@v6.1.0  # 2026-11-18 查證
+        with:
+          path: ${{ runner.temp }}/Qt/6.11.3/msvc2022_64
+          key: qt-6.11.3-win64_msvc2022_64-${{ hashFiles('tools/install_qt.py') }}
+
+      - name: 安裝 Qt 6.11.3（官方線上倉庫，驗 SHA1）
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: python tools/install_qt.py --version 6.11.3 --arch win64_msvc2022_64 --out "$env:RUNNER_TEMP/Qt/6.11.3/msvc2022_64"
+
+      - name: 設定 Qt 路徑
+        shell: pwsh
+        run: |
+          $qt = "$env:RUNNER_TEMP/Qt/6.11.3/msvc2022_64"
+          "QT_ROOT_DIR=$qt" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$qt/bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - uses: lukka/run-vcpkg@v11.6
+        with:
+          vcpkgJsonGlob: vcpkg.json
+
+      - uses: ilammy/msvc-dev-cmd@v1.13.0
+
+      - name: 設定與建置（Release，發佈版不帶開發版的資料夾保護）
+        shell: pwsh
+        run: |
+          $env:QTDIR = $env:QT_ROOT_DIR
+          cmake --preset windows-release -DAURALIS_DEV_BUILD=OFF -DAURALIS_WITH_ASIO=OFF
+          cmake --build --preset windows-release
+
+      - name: token 檢查
+        shell: pwsh
+        run: python tools/check_tokens.py src
+
+      - name: 測試
+        shell: pwsh
+        # 效能測試（標籤 perf）要本機的 4 萬首測試音樂庫，只在發佈前的本機驗證跑
+        # 共用跑者上以實際時間為門檻的測試（跳轉、音量延遲、UI 執行緒間隔）偶爾超時：失敗的測試最多重跑兩次，
+        # 三次都失敗才算紅燈（日誌照樣看得到第一次的失敗）
+        run: ctest --preset windows-release --output-on-failure --timeout 300 -LE perf --repeat until-pass:3
+
+      - name: 印出 Quick Test 結果（測試失敗時）
+        if: failure()
+        shell: pwsh
+        run: |
+          foreach ($f in 'quick-tests', 't-22-quick', 't-50-quick-result', 't-66-quick-result') {
+            $p = ".localdata/tmp/ctest/$f/result.txt"
+            if (Test-Path $p) { "==== $p"; Get-Content $p -Encoding utf8 | Select-String -Pattern 'FAIL!|Totals|QWARN|Loc:' }
+          }
+
+      - name: 打包
+        shell: pwsh
+        run: cmake --build --preset windows-release --target package
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: AuralisPlayer-win64
+          path: build/windows-release/AuralisPlayer-*.zip

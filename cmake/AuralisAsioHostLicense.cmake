@@ -1,0 +1,20 @@
+# ASIO SDK 的 host/ 檔案（asiodrivers、asiolist、ginclude）帶自己的 BSD 式授權，不是 SDK 的雙授權，
+# binary 散布要附上它的著作權聲明與條件（T-102）：從 vcpkg 安裝的標頭照原文擷取（只去掉行首的 //）。
+# 設定時產生一次，主程式包（內建的 ASIO 外掛，T-105）與外掛包都用這一份；SDK 檔案本身不進 repo 也不進 zip。
+function(auralis_asio_host_license header out)
+    file(READ "${header}" _host)
+    string(REPLACE "\r" "" _host "${_host}")
+    string(REGEX MATCH "// LICENSE\n.*OF SUCH DAMAGE\\." _host "${_host}")
+    if(_host STREQUAL "")
+        message(FATAL_ERROR "ASIO SDK 的 host/asiodrivers.h 找不到授權段（T-102）")
+    endif()
+    string(REGEX REPLACE "(^|\n)// ?" "\\1" _host "${_host}")
+    set(_content "ASIO SDK 2.3.4 host files (host/asiodrivers.*, host/pc/asiolist.*, host/ginclude.h)\n\n${_host}\n")
+    set(_old "")
+    if(EXISTS "${out}")
+        file(READ "${out}" _old)
+    endif()
+    if(NOT _old STREQUAL _content)
+        file(WRITE "${out}" "${_content}")
+    endif()
+endfunction()
