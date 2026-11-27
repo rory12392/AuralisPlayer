@@ -16,8 +16,8 @@ import "PlaylistColumns.js" as PlaylistColumns
 Item {
     id: view
 
-    readonly property alias list: list
-    readonly property alias menu: menu
+    readonly property alias list: trackList
+    readonly property alias menu: trackMenu
     readonly property var columns: PlaylistColumns.columns()
     readonly property bool showCover: true
     readonly property int rowHeight: showCover ? Theme.rowHeight : Theme.rowHeightCompact
@@ -37,31 +37,31 @@ Item {
     readonly property int indicatorRow: reorderTarget >= 0 ? reorderTarget : dropTarget
 
     readonly property var actions: ({
-        list: list,
+        list: trackList,
         tracks: PlaylistTracks,
-        menu: menu,
+        menu: trackMenu,
         player: Player,
         contain: ListView.Contain
     })
 
     // 清單內容的 y（含捲動）→ 插入位置：落在一列的下半部時插在它後面
     function targetAt(y) {
-        if (list.count === 0)
+        if (trackList.count === 0)
             return 0
-        const row = list.indexAt(Theme.space6, y + list.contentY)
+        const row = trackList.indexAt(Theme.space6, y + trackList.contentY)
         if (row < 0)
-            return y + list.contentY < 0 ? 0 : list.count
-        const item = list.itemAtIndex(row)
-        const lower = item && (y + list.contentY - item.y) > item.height / 2
+            return y + trackList.contentY < 0 ? 0 : trackList.count
+        const item = trackList.itemAtIndex(row)
+        const lower = item && (y + trackList.contentY - item.y) > item.height / 2
         return lower ? row + 1 : row
     }
 
     function beginReorder(y) {
-        const row = list.indexAt(Theme.space6, y + list.contentY)
+        const row = trackList.indexAt(Theme.space6, y + trackList.contentY)
         if (row < 0)
             return
-        list.currentIndex = row
-        list.forceActiveFocus()
+        trackList.currentIndex = row
+        trackList.forceActiveFocus()
         PlaylistTracks.ensureSelected(row)
         reorderRows = PlaylistTracks.selectedRows()
         reorderTarget = targetAt(y)
@@ -76,7 +76,7 @@ Item {
             return
         const first = PlaylistTracks.moveRows(rows, target)
         if (first >= 0)
-            list.currentIndex = first
+            trackList.currentIndex = first
     }
 
     property var pendingDrop: null
@@ -88,24 +88,24 @@ Item {
         const drop = pendingDrop
         pendingDrop = null
         if (drop)
-            PlaylistTracks.insertTracks(drop.json, drop.row >= list.count ? -1 : drop.row)
+            PlaylistTracks.insertTracks(drop.json, drop.row >= trackList.count ? -1 : drop.row)
     }
 
     TrackMenu {
-        id: menu
+        id: trackMenu
     }
 
     ListHeader {
-        id: header
+        id: listHeader
         anchors { left: parent.left; right: parent.right; top: parent.top }
         columns: view.columns
         showCover: view.showCover
     }
 
     ListView {
-        id: list
+        id: trackList
         objectName: "playlistTrackList"
-        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
+        anchors { left: parent.left; right: parent.right; top: listHeader.bottom; bottom: parent.bottom }
         clip: true
         activeFocusOnTab: true
         boundsBehavior: Flickable.StopAtBounds
@@ -116,7 +116,7 @@ Item {
         Accessible.role: Accessible.List
         Accessible.name: qsTr("播放清單的曲目")
         ScrollBar.vertical: ScrollBar {}
-        WheelScroll { flickable: list; lineHeight: view.rowHeight }
+        WheelScroll { flickable: trackList; lineHeight: view.rowHeight }
 
         Keys.onPressed: event => event.accepted = ListActions.handleKey(view.actions, event)
 
@@ -124,10 +124,10 @@ Item {
         property real keptY: 0
         Connections {
             target: PlaylistTracks
-            function onModelAboutToBeReset() { list.keptY = list.contentY }
+            function onModelAboutToBeReset() { trackList.keptY = trackList.contentY }
             function onModelReset() {
-                Qt.callLater(() => list.contentY = Math.max(0, Math.min(list.keptY,
-                                                                        list.contentHeight - list.height)))
+                Qt.callLater(() => trackList.contentY = Math.max(0, Math.min(trackList.keptY,
+                                                                        trackList.contentHeight - trackList.height)))
             }
         }
 
@@ -195,8 +195,8 @@ Item {
         objectName: "playlistReorderHandle"
         x: view.handleX
         width: view.handleWidth
-        anchors { top: list.top; bottom: list.bottom }
-        visible: view.handleWidth > 0 && list.count > 0
+        anchors { top: trackList.top; bottom: trackList.bottom }
+        visible: view.handleWidth > 0 && trackList.count > 0
         preventStealing: true
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         property real lastY: 0
@@ -215,10 +215,10 @@ Item {
         interval: Theme.motionState
         repeat: true
         running: view.reorderRows.length > 0
-                 && (handleArea.lastY < view.rowHeight || handleArea.lastY > list.height - view.rowHeight)
+                 && (handleArea.lastY < view.rowHeight || handleArea.lastY > trackList.height - view.rowHeight)
         onTriggered: {
             const step = handleArea.lastY < view.rowHeight ? -view.rowHeight : view.rowHeight
-            list.contentY = Math.max(0, Math.min(list.contentHeight - list.height, list.contentY + step))
+            trackList.contentY = Math.max(0, Math.min(trackList.contentHeight - trackList.height, trackList.contentY + step))
             view.reorderTarget = view.targetAt(handleArea.lastY)
         }
     }
@@ -226,7 +226,7 @@ Item {
     // 從音樂庫、佇列以外的地方拖曲目進來（清單與下方空白都算）
     TrackDropArea {
         id: dropZone
-        anchors { left: parent.left; right: parent.right; top: list.top; bottom: list.bottom }
+        anchors { left: parent.left; right: parent.right; top: trackList.top; bottom: trackList.bottom }
         readonly property bool fromHere: view.selfDrag || drag.source?.objectName === "playlistTrackDrag"
         onPositionChanged: drag => view.dropTarget = fromHere ? -1 : view.targetAt(drag.y)
         onContainsDragChanged: if (!containsDrag) view.dropTarget = -1
@@ -242,9 +242,9 @@ Item {
     Rectangle {
         visible: view.indicatorRow >= 0
         x: Theme.space6
-        width: list.width - Theme.space6 * 2
+        width: trackList.width - Theme.space6 * 2
         height: Theme.focusWidth
         color: Theme.ink
-        y: list.y + Math.max(0, Math.min(list.height, view.indicatorRow * view.rowHeight - list.contentY)) - height / 2
+        y: trackList.y + Math.max(0, Math.min(trackList.height, view.indicatorRow * view.rowHeight - trackList.contentY)) - height / 2
     }
 }

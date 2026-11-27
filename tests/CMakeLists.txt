@@ -2,6 +2,8 @@ find_package(Catch2 3 CONFIG REQUIRED)
 include(Catch)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(Qt6 REQUIRED COMPONENTS Test QuickTest)
+# 測試共用的標頭（test_qt_app.h）；這個資料夾與底下的模組測試都看得到
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 # 測試只寫 .localdata\tmp\ 底下，不碰使用者的真實資料
 set(AURALIS_TEST_TMP "${PROJECT_SOURCE_DIR}/.localdata/tmp/ctest")
@@ -39,6 +41,7 @@ add_executable(auralis_core_tests
     core/test_module_settings.cpp
     core/test_output_settings.cpp
     core/test_result.cpp
+    core/test_ui_scale.cpp
     core/test_ui_services.cpp
     core/audio/engine_helpers.h
     core/audio/fake_wasapi.cpp
@@ -66,6 +69,7 @@ add_executable(auralis_core_tests
     core/audio/volume_probe.h
     core/audio/test_wasapi_backend.cpp
     core/covers/test_cover_image.cpp
+    core/covers/test_cover_response.cpp
     core/covers/test_cover_service.cpp
     core/library/cue_fixtures.cpp
     core/library/cue_fixtures.h
@@ -82,6 +86,7 @@ add_executable(auralis_core_tests
     core/library/test_library_scan.cpp
     core/library/test_library_service.cpp
     core/library/test_library_watcher.cpp
+    core/library/test_meta_backfill.cpp
     core/library/test_migrations.cpp
     core/library/test_open_paths.cpp
     core/library/test_scan_links.cpp
@@ -90,6 +95,7 @@ add_executable(auralis_core_tests
     core/playback/test_dsd_output_path.cpp
     core/playback/test_dsd_pcm_volume.cpp
     core/playback/test_output_status.cpp
+    core/playback/test_play_start.cpp
     core/playback/test_playback_cue.cpp
     core/playback/test_playback_queue.cpp
     core/playback/test_playback_service.cpp
@@ -193,6 +199,7 @@ set_property(TEST ${app_tests} APPEND PROPERTY ENVIRONMENT_MODIFICATION "${AURAL
 # ---- 效能量測（標籤 perf；STACK §6：ctest --preset windows-release -L perf）----
 add_executable(auralis_perf_tests
     perf/test_scan_perf.cpp
+    perf/test_upgrade_perf.cpp
     core/audio/signal_writer.cpp
     core/library/library_fixtures.cpp
     utf8.manifest
@@ -243,38 +250,62 @@ catch_discover_tests(auralis_ui_tests
 )
 
 add_executable(auralis_quick_tests ui/quick_test_main.cpp ui/fake_outputs.h
-    ui/fake_playback_service.h ui/frame_probe.h ui/fake_plugins.h)
+    ui/fake_playback_service.h ui/frame_probe.h ui/fake_plugins.h ui/ui_scale_probe.h
+    ui/jobs_probe.h)
 target_link_libraries(auralis_quick_tests PRIVATE auralis_ui auralis_uiplugin Qt6::QuickTest)
 target_compile_definitions(auralis_quick_tests PRIVATE
     AURALIS_TEST_TMP="${AURALIS_TEST_TMP}"
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/ui/qml")
 # Qt Quick Test 是視窗程式，ctest 收不到它的標準輸出，失敗時原本什麼訊息都沒有：
 # 結果用 -o 寫到測試暫存的檔案，失敗（含逾時）時由這支腳本印出來，看得到是哪個函式
-set(quick_tests_out "${AURALIS_TEST_TMP}/quick-tests/result.txt")
 file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/run_quick_tests.cmake" @ONLY CONTENT [==[
-# 由 tests/CMakeLists.txt 產生：cmake -DEXE=<auralis_quick_tests> -DOUT=<輸出檔> -P run_quick_tests.cmake
+# 由 tests/CMakeLists.txt 產生：cmake -DEXE=<auralis_quick_tests> -DINPUT=<tst_*.qml> -DOUT=<輸出檔>
+#   -DNAME=<ctest 名稱> -DTIMEOUT=<秒> -P run_quick_tests.cmake
 get_filename_component(_auralis_out_dir "${OUT}" DIRECTORY)
 file(MAKE_DIRECTORY "${_auralis_out_dir}")
 file(REMOVE "${OUT}")
 # 逾時比 ctest 的 TIMEOUT 短：卡住時由這裡結束它，才來得及把已經寫出的部分印出來
-execute_process(COMMAND "${EXE}" -o "${OUT},txt" RESULT_VARIABLE _auralis_rc TIMEOUT 150)
+execute_process(COMMAND "${EXE}" -input "${INPUT}" -o "${OUT},txt"
+    RESULT_VARIABLE _auralis_rc TIMEOUT ${TIMEOUT})
 if(NOT _auralis_rc STREQUAL "0")
     if(EXISTS "${OUT}")
         file(READ "${OUT}" _auralis_text)
         message("${_auralis_text}")
     endif()
-    message(FATAL_ERROR "ui.quick_tests 失敗（${_auralis_rc}）；完整輸出在 ${OUT}")
+    message(FATAL_ERROR "${NAME} 失敗（${_auralis_rc}）；完整輸出在 ${OUT}")
 endif()
 ]==])
-add_test(NAME ui.quick_tests
-    COMMAND ${CMAKE_COMMAND} -DEXE=$<TARGET_FILE:auralis_quick_tests> -DOUT=${quick_tests_out}
-            -P "${CMAKE_CURRENT_BINARY_DIR}/run_quick_tests.cmake")
-set_tests_properties(ui.quick_tests PROPERTIES TIMEOUT 180)
+# 每個 tst_*.qml 一個 ctest（ui.quick_<檔名>）：可平行、各自逾時、各自的輸出檔與設定資料夾。
+# 全部放一個行程時總時間隨測試增加，和其他測試同時跑會撞到固定的逾時（P-59）。
+# 進出全螢幕那個檔要真的視窗，由下面的 window.fullscreen_transition 跑
+file(GLOB quick_test_files CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/tst_*.qml")
+list(FILTER quick_test_files EXCLUDE REGEX "/tst_fullscreen_transition\\.qml$")
+set(quick_tests)
+foreach(quick_file IN LISTS quick_test_files)
+    get_filename_component(quick_name "${quick_file}" NAME_WE)
+    string(REGEX REPLACE "^tst_" "" quick_name "${quick_name}")
+    add_test(NAME ui.quick_${quick_name}
+        COMMAND ${CMAKE_COMMAND} -DEXE=$<TARGET_FILE:auralis_quick_tests> -DINPUT=${quick_file}
+                -DOUT=${AURALIS_TEST_TMP}/quick-tests/${quick_name}.txt -DNAME=ui.quick_${quick_name}
+                -DTIMEOUT=60 -P "${CMAKE_CURRENT_BINARY_DIR}/run_quick_tests.cmake")
+    set_tests_properties(ui.quick_${quick_name} PROPERTIES TIMEOUT 90
+        ENVIRONMENT "AURALIS_QUICK_STATE_DIR=${AURALIS_TEST_TMP}/quick-tests/${quick_name}")
+    list(APPEND quick_tests ui.quick_${quick_name})
+endforeach()
+# 以實際時間為門檻的 QML 測試不和其他測試同時跑：骨架 150 ms 才顯示（display）、背景工作約 300 ms
+# 才出現（jobs）、4 萬首拖曳 1 秒內（lists）；負載下事件迴圈延遲會讓它們偶發失敗（P-39）
+set_tests_properties(ui.quick_display ui.quick_jobs ui.quick_lists PROPERTIES RUN_SERIAL TRUE)
 # 進出全螢幕不畫出跑版的一格（P-LYR-11）：要真的 windows 平台視窗，會在螢幕上開最上層的視窗並進出
 # 全螢幕約一兩秒，所以不放進 -L ui（使用者常在前景用電腦），標籤 window，任務檢查與里程碑驗證另外跑
+# 視窗程式的輸出 ctest 收不到：結果寫進檔案、一律印出來（逐格紀錄與略過的原因才看得到；cmake 的
+# execute_process 會把視窗藏起來，所以用 PowerShell 啟動）。畫不出新格子的環境（螢幕關閉、鎖定）測試裡
+# 會 skip()，ctest 要顯示成略過、不算通過（P-54）
 add_test(NAME window.fullscreen_transition
-    COMMAND auralis_quick_tests -input "${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/tst_fullscreen_transition.qml")
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass -File "${CMAKE_CURRENT_SOURCE_DIR}/ui/run_window_test.ps1"
+            -Exe $<TARGET_FILE:auralis_quick_tests> -Qml "${CMAKE_CURRENT_SOURCE_DIR}/ui/qml/tst_fullscreen_transition.qml"
+            -Out "${AURALIS_TEST_TMP}/window-tests/fullscreen_transition.txt")
 set_tests_properties(window.fullscreen_transition PROPERTIES TIMEOUT 120 LABELS window
+    SKIP_REGULAR_EXPRESSION "SKIP +: "
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${AURALIS_QT_BIN};QT_QPA_PLATFORM=set:windows")
 
 set(screenshot_dir "${AURALIS_TEST_TMP}/screenshots")
@@ -318,8 +349,16 @@ add_test(NAME ui.screenshot_panel_unknown
             "-DARGS=--data-dir|${AURALIS_TEST_TMP}/ui-app-panel-unknown|--screenshot|shell?panel=no-such|--size|960x640|--out|${screenshot_dir}/panel-unknown.png"
             "-DSTDERR_REGEX=沒有這個面板：panel/no-such.*panel/now-playing.*panel/queue"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/ui/expect_failure.cmake")
-set(ui_script_tests ui.quick_tests ui.screenshot_shell ui.page_unknown ui.dev_page ui.dev_page_section
-    ui.command_line_open ui.screenshot_panel ui.screenshot_panel_unknown)
+# windows 平台截圖、視窗畫不出來（隱藏啟動，等同螢幕關閉或鎖定）時明確失敗並說明原因，不一直等（P-41）；
+# 視窗隱藏，不會出現在螢幕上
+add_test(NAME ui.screenshot_no_frames
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass -File "${CMAKE_CURRENT_SOURCE_DIR}/ui/screenshot_no_frames.ps1"
+            -Exe $<TARGET_FILE:AuralisPlayer> -DataDir "${AURALIS_TEST_TMP}/ui-app-no-frames"
+            -Out "${screenshot_dir}/no-frames.png")
+set_tests_properties(ui.screenshot_no_frames PROPERTIES TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "rc=1[^0-9].*截圖等不到畫面")
+set(ui_script_tests ${quick_tests} ui.screenshot_shell ui.page_unknown ui.dev_page ui.dev_page_section
+    ui.command_line_open ui.screenshot_panel ui.screenshot_panel_unknown ui.screenshot_no_frames)
 set_property(TEST ${ui_script_tests} APPEND PROPERTY LABELS ui)
 set_property(TEST ${ui_script_tests} APPEND PROPERTY ENVIRONMENT_MODIFICATION "${AURALIS_TEST_ENV}")
 
@@ -454,10 +493,12 @@ foreach(_auralis_test IN LISTS _auralis_timing_tests)
 endforeach()
 ]==])
 set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES "${CMAKE_CURRENT_BINARY_DIR}/ctest_serial_tests.cmake")
-add_subdirectory(modules/hires_output)
-add_subdirectory(modules/library_browse)
 # 多片專輯的 Disc 子資料夾分組（T-91）
 target_sources(auralis_core_tests PRIVATE core/library/test_disc_folders.cpp)
-add_subdirectory(modules/playlists)
-add_subdirectory(modules/lyrics)
-add_subdirectory(modules/smtc)
+# 每個模組的測試在 tests/modules/<模組>/CMakeLists.txt；新模組的測試資料夾自動加入
+file(GLOB _auralis_module_tests LIST_DIRECTORIES false
+    "${CMAKE_CURRENT_SOURCE_DIR}/modules/*/CMakeLists.txt")
+foreach(_auralis_module_cmake IN LISTS _auralis_module_tests)
+    get_filename_component(_auralis_module_dir "${_auralis_module_cmake}" DIRECTORY)
+    add_subdirectory("${_auralis_module_dir}")
+endforeach()

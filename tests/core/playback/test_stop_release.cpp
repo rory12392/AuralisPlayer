@@ -60,6 +60,7 @@ TEST_CASE("AC-02-8（T-95）：停止關閉輸出裝置，同一裝置可以再�
     f.service.setOutputBackend(std::move(owned));
 
     f.service.playFrom({a, b}, 0);
+    f.service.waitForStart();
     REQUIRE(f.drive([&] { return f.service.positionMs() > 500; }));
     REQUIRE(backend->held());
 
@@ -88,6 +89,7 @@ TEST_CASE("AC-02-8（T-95）：停止關閉輸出裝置，同一裝置可以再�
 
     // 再按播放：從目前曲目（a）的開頭播，裝置重新開啟
     f.service.play();
+    f.service.waitForStart();
     CHECK(f.service.state() == State::Playing);
     CHECK(f.service.currentEntry()->track.path == a.path);
     REQUIRE(f.drive([&] { return f.service.state() == State::Stopped; }));
@@ -106,6 +108,7 @@ TEST_CASE("AC-02-8（T-95）：暫停中按停止，位置回到 0，再按播�
     f.service.setOutputBackend(std::move(owned));
 
     f.service.playFrom({a}, 0);
+    f.service.waitForStart();
     REQUIRE(f.drive([&] { return f.service.positionMs() > 500; }));
     f.service.pause();
     REQUIRE(f.service.state() == State::Paused);
@@ -115,6 +118,7 @@ TEST_CASE("AC-02-8（T-95）：暫停中按停止，位置回到 0，再按播�
     CHECK_FALSE(f.device("a").busy);
 
     f.service.play();
+    f.service.waitForStart();
     CHECK(f.service.state() == State::Playing);
     CHECK(f.service.positionMs() == 0);
     f.service.stop();

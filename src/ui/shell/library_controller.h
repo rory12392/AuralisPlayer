@@ -36,7 +36,6 @@ class LibraryController : public QObject {
     /// 音樂庫的曲目總數；還沒查好時是 -1。
     Q_PROPERTY(int trackCount READ trackCount NOTIFY foldersChanged)
     Q_PROPERTY(bool scanning READ scanning NOTIFY scanningChanged)
-    Q_PROPERTY(int scannedCount READ scannedCount NOTIFY progressChanged)
     Q_PROPERTY(int totalCount READ totalCount NOTIFY progressChanged)
     /// 0 到 1；總數還不知道時是 0。
     Q_PROPERTY(qreal progress READ progress NOTIFY progressChanged)

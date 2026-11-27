@@ -9,11 +9,12 @@
 """
 from __future__ import annotations
 
-import argparse
 import re
 import sys
 import tempfile
 from pathlib import Path
+
+import boundary_cli
 
 CPP_SUFFIXES = {".cpp", ".h"}
 INCLUDE_RE = re.compile(r'^\s*#\s*include\s*([<"])([^>"]+)[>"]')
@@ -136,30 +137,8 @@ def self_test() -> int:
         and all("good" not in v for v in found)
         and sum("bad_core.cpp" in v for v in found) == 9
     )
-    for line in found:
-        print(f"  抓到：{line}")
-    print(f"自我測試{'通過' if ok else '失敗'}：預期 {expected} 個越界，實際 {len(found)} 個")
-    return 0 if ok else 1
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--root", type=Path)
-    parser.add_argument("--self-test", action="store_true")
-    args = parser.parse_args()
-    if args.self_test:
-        return self_test()
-    if args.root is None:
-        parser.error("需要 --root 或 --self-test")
-    violations = scan(args.root)
-    if violations:
-        print("模組越界的 include：")
-        for line in violations:
-            print(f"  {line}")
-        return 1
-    print("模組 include 檢查通過")
-    return 0
+    return boundary_cli.report_self_test(found, expected, ok)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(boundary_cli.run(scan, self_test, "模組越界的 include：", "模組 include 檢查通過"))

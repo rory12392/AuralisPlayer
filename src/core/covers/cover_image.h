@@ -16,6 +16,10 @@ constexpr qint64 kMaxCoverPixels = 40LL * 1000 * 1000;
 /// 唯讀開檔（GENERIC_READ，共用讀寫刪除）讀進整個檔案；超過 maxBytes 回傳 Error。
 /// 執行緒：任何執行緒。
 Result<QByteArray> readUserFile(const QString& path, qint64 maxBytes);
+/// 同上；超過 maxBytes 時的錯誤訊息用 tooLarge（%1 是位元組數）、呼叫名稱用 call
+/// （文字檔解碼也用這一份，見 TextDecoder::decodeFile）。
+Result<QByteArray> readUserFile(const QString& path, qint64 maxBytes, const QString& tooLarge,
+                                const QString& call);
 
 /// 解碼圖檔內容（JPEG、PNG；其他 Qt 認得的格式也接受），長邊縮到不超過 maxSide（不放大；
 /// maxSide ≤ 0 時不縮）。結果一律是不透明的 RGB32：透明的部分疊在黑色上。

@@ -41,7 +41,7 @@ Corresponding Source. The Corresponding Source of this package consists of:
   b) the source code of the ASIO SDK 2.3.4 archive listed in section 3.1,
      together with the vcpkg port files (portfile and patches) used to
      build it, and the source code of the other components the plugin is
-     built with (Qt 6.11.3 qtbase), as listed in the main program's
+     built with (Qt 6.12.1 qtbase), as listed in the main program's
      THIRD-PARTY-NOTICES.txt.
 It is offered as attachments on the Release page of
   https://github.com/rory12392/AuralisPlayer/releases
@@ -67,7 +67,7 @@ License: GNU General Public License, version 3 only (GPL-3.0-only, LICENSE)
       SHA-256 d5ebf0c20dd2c5f43771fd0c1418f4b361bf52434ee670097cfa6b3a335e2eca),
       with the patch fix-new-delete-mismatch.patch of the vcpkg port
       "asiosdk" 2.3.4#2:
-      https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/asiosdk
+      https://github.com/microsoft/vcpkg/tree/f4c425bd7750eea5f9b59d7df2b818d3298a5e58/ports/asiosdk
     Copyright (c) 2025, Steinberg Media Technologies GmbH.
     License: the SDK's LICENSE.txt (licenses/ASIO-SDK.txt) offers a) the
     Steinberg ASIO License or b) the General Public License (GPL) Version

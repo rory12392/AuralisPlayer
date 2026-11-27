@@ -2,6 +2,9 @@
 
 #include "search_criteria.h"
 
+#include <QDateTime>
+#include <QLocale>
+
 namespace auralis::mod::lib {
 
 QString durationText(qint64 ms) {
@@ -30,6 +33,23 @@ QString qualityText(const TrackInfo& track) {
     }
     const QString rate = sampleRateText(track.sampleRate);
     return track.bits > 0 ? QStringLiteral("%1 / %2 bit").arg(rate).arg(track.bits) : rate;
+}
+
+QString bitrateText(std::optional<int> kbps) {
+    if (!kbps) {
+        return {};
+    }
+    // 千分位固定用逗號（介面規範的數量寫法），不跟系統地區設定
+    return QStringLiteral("%1 kbps").arg(
+        QLocale(QLocale::English, QLocale::UnitedStates).toString(*kbps));
+}
+
+QString addedText(std::optional<qint64> utcMs) {
+    if (!utcMs) {
+        return {};
+    }
+    return QDateTime::fromMSecsSinceEpoch(*utcMs).toLocalTime().toString(
+        QStringLiteral("yyyy-MM-dd"));
 }
 
 } // namespace auralis::mod::lib

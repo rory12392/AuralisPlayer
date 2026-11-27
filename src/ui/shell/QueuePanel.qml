@@ -35,7 +35,7 @@ Item {
     }
 
     Item {
-        id: header
+        id: queueHeader
         anchors { left: parent.left; right: parent.right; top: parent.top }
         anchors.leftMargin: Theme.space6
         anchors.rightMargin: Theme.space6
@@ -63,7 +63,7 @@ Item {
     ListView {
         id: list
         objectName: "queueList"
-        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
+        anchors { left: parent.left; right: parent.right; top: queueHeader.bottom; bottom: parent.bottom }
         clip: true
         model: panel.queue
         activeFocusOnTab: true

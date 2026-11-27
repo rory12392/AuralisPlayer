@@ -28,16 +28,9 @@ using auralis::test::startsWithThenSilence;
 using State = PlaybackService::State;
 using RepeatMode = PlaybackService::RepeatMode;
 
-namespace {
+using auralis::test::cd;
 
-AudioFormat cd() {
-    AudioFormat format;
-    format.rate = 44100;
-    format.bits = 16;
-    format.container = 16;
-    format.channels = 2;
-    return format;
-}
+namespace {
 
 /// 副檔名 .mem 的音源：路徑對到測試準備好的資料；沒有的路徑開不了（AC-01-3）。
 class MemoryFactory final : public auralis::ISourceFactory {
@@ -81,9 +74,12 @@ struct Fixture {
     bool drive(const std::function<bool()>& condition, int timeoutMs = 20000) {
         const auto deadline =
             std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        // 開始播放在背景開檔（T-113）：先等它做完，條件才不會在開始之前就成立
+        service.waitForStart();
         while (!condition() && std::chrono::steady_clock::now() < deadline) {
             QCoreApplication::processEvents();
             service.poll();
+            service.waitForStart();
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
         QCoreApplication::processEvents();
@@ -118,6 +114,7 @@ TEST_CASE("AC-11-2：照佇列順序無縫接續；預開之後「接著播放�
     const TrackRef b = f.add("b", 0.5, 2);
     QSignalSpy tracks(&f.service, &PlaybackService::trackChanged);
     f.service.playFrom({a, c}, 0);
+    f.service.waitForStart();
     REQUIRE(f.service.state() == State::Playing);
     // a 不到 5 秒，開始播時就已經預開了 c；插入 b 要撤回 c
     f.service.enqueueNext({b});
@@ -134,6 +131,7 @@ TEST_CASE("AC-11-2：加到最後的曲目在目前這首之後無縫接著播")
     const TrackRef a = f.add("a", 1.0, 1);
     const TrackRef z = f.add("z", 0.5, 9);
     f.service.playFrom({a}, 0);
+    f.service.waitForStart();
     f.service.enqueueLast({z});
     REQUIRE(f.driveUntilStopped());
     CHECK(f.backend->sessions().size() == 1);
@@ -146,6 +144,7 @@ TEST_CASE("AC-11-2：目前這首已經整首解完才加到最後，播完後�
     const TrackRef a = f.add("a", 0.5, 1);
     const TrackRef z = f.add("z", 0.5, 9);
     f.service.playFrom({a}, 0);
+    f.service.waitForStart();
     f.service.enqueueLast({z});
     REQUIRE(f.driveUntilStopped());
     const auto sessions = f.backend->sessions();
@@ -191,6 +190,7 @@ TEST_CASE("AC-11-2：隨機播放從選的那首開始，實際播放順序就�
     }
     f.service.setShuffle(true);
     f.service.playFrom(list, 2);
+    f.service.waitForStart();
     const QList<QueueEntry> order = f.service.queue();
     REQUIRE(order.size() == 6);
     CHECK(order.first().track.path == list[2].path);
@@ -239,6 +239,7 @@ TEST_CASE("AC-11-2：暫停關掉裝置，繼續時從暫停的位置重開") {
     CHECK(f.service.state() == State::Paused);
     const qint64 paused = f.service.positionMs();
     f.service.togglePause();
+    f.service.waitForStart();
     CHECK(f.service.state() == State::Playing);
     REQUIRE(f.driveUntilStopped());
     const auto sessions = f.backend->sessions();
@@ -272,11 +273,15 @@ TEST_CASE("AC-11-2：移出正在播的曲目時接著播它後面那首；上�
     const TrackRef b = f.add("b", 3.0, 2);
     const TrackRef c = f.add("c", 0.5, 3);
     f.service.playFrom({a, b, c}, 0);
+    f.service.waitForStart();
     f.service.next();
+    f.service.waitForStart();
     CHECK(f.service.currentEntry()->track.path == b.path);
     f.service.previous();
+    f.service.waitForStart();
     CHECK(f.service.currentEntry()->track.path == a.path);
     f.service.remove({f.service.currentEntry()->id});
+    f.service.waitForStart();
     CHECK(paths(f.service.queue()) == QStringList{b.path, c.path});
     CHECK(f.service.currentEntry()->track.path == b.path);
     CHECK(f.service.state() == State::Playing);

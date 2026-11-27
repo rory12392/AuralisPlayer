@@ -37,7 +37,7 @@ const QString kTrackColumns = QStringLiteral(
     "start_cdframe, end_cdframe, title, artist, album_artist, album, composer, genre, year, "
     "disc_no, track_no, duration_ms, "
     "codec, sample_rate, bits, channels, dsd_rate, rg_track_gain, rg_track_peak, rg_album_gain, "
-    "rg_album_peak, has_embedded_lyrics, album_id, search_text, cover_key");
+    "rg_album_peak, has_embedded_lyrics, album_id, search_text, cover_key, bitrate");
 
 } // namespace
 
@@ -218,10 +218,11 @@ void LibraryWriter::upsertTrack(qint64 fileId, qint64 folderId, quint32 subsong,
         updates += (updates.isEmpty() ? QString() : QStringLiteral(", ")) + column +
                    QStringLiteral(" = excluded.") + column;
     }
-    // 衝突時更新而不是刪掉重建：曲目 id 不變，搜尋索引只在 search_text 改變時重建
-    exec(QStringLiteral("INSERT INTO tracks(file_id, subsong, %1) VALUES (?, ?, %2) "
-                        "ON CONFLICT(file_id, subsong) DO UPDATE SET %3")
-             .arg(kTrackColumns, QStringLiteral("?, ").repeated(24) + QStringLiteral("?"), updates),
+    // 衝突時更新而不是刪掉重建：曲目 id 不變，搜尋索引只在 search_text 改變時重建。
+    // added_at（第一次收錄的時間）與補值狀態只在新增時寫，重新掃描不覆寫（AC-10-5）
+    exec(QStringLiteral("INSERT INTO tracks(file_id, subsong, %1, added_at, meta_backfill) "
+                        "VALUES (?, ?, %2, ?, 0) ON CONFLICT(file_id, subsong) DO UPDATE SET %3")
+             .arg(kTrackColumns, QStringLiteral("?, ").repeated(25) + QStringLiteral("?"), updates),
          {fileId,
           static_cast<qint64>(subsong),
           startCdFrame < 0 ? QVariant() : QVariant(startCdFrame),
@@ -248,7 +249,9 @@ void LibraryWriter::upsertTrack(qint64 fileId, qint64 folderId, quint32 subsong,
           tags.hasEmbeddedLyrics,
           albumId(folderId, tags),
           searchText,
-          coverKey.isEmpty() ? QVariant() : QVariant(coverKey)});
+          coverKey.isEmpty() ? QVariant() : QVariant(coverKey),
+          tags.bitrate ? QVariant(*tags.bitrate) : QVariant(),
+          QDateTime::currentMSecsSinceEpoch()});
 }
 
 void LibraryWriter::writeUnreadable(qint64 folderId, const EnumeratedFile& file,
@@ -310,13 +313,17 @@ qint64 LibraryWriter::insertReport(qint64 startedAt) {
 }
 
 void LibraryWriter::finishReport(const ScanReport& report) {
-    QJsonArray failures;
-    for (const auto& failure : report.failures) {
-        failures.append(QJsonObject{{QStringLiteral("path"), failure.path},
-                                    {QStringLiteral("error"), failure.error}});
-    }
+    const auto toJson = [](const QList<ScanFailure>& list) {
+        QJsonArray array;
+        for (const auto& failure : list) {
+            array.append(QJsonObject{{QStringLiteral("path"), failure.path},
+                                     {QStringLiteral("error"), failure.error}});
+        }
+        return array;
+    };
     const QJsonObject details{{QStringLiteral("cancelled"), report.cancelled},
-                              {QStringLiteral("failures"), failures}};
+                              {QStringLiteral("failures"), toJson(report.failures)},
+                              {QStringLiteral("skippedLinks"), toJson(report.skippedLinks)}};
     exec(QStringLiteral("UPDATE scan_reports SET finished_at = ?, scanned = ?, added = ?, "
                         "updated = ?, removed = ?, failed = ?, details_json = ? WHERE id = ?"),
          {report.finishedAt, report.scanned, report.added, report.updated, report.removed,
@@ -343,11 +350,17 @@ ScanReport LibraryWriter::lastReport() {
     report.failed = row[7].toInt();
     const QJsonObject details = QJsonDocument::fromJson(row[8].toString().toUtf8()).object();
     report.cancelled = details.value(QStringLiteral("cancelled")).toBool();
-    for (const auto& item : details.value(QStringLiteral("failures")).toArray()) {
-        const QJsonObject failure = item.toObject();
-        report.failures.append({failure.value(QStringLiteral("path")).toString(),
-                                failure.value(QStringLiteral("error")).toString()});
-    }
+    const auto fromJson = [&details](const QString& key) {
+        QList<ScanFailure> list;
+        for (const auto& item : details.value(key).toArray()) {
+            const QJsonObject failure = item.toObject();
+            list.append({failure.value(QStringLiteral("path")).toString(),
+                         failure.value(QStringLiteral("error")).toString()});
+        }
+        return list;
+    };
+    report.failures = fromJson(QStringLiteral("failures"));
+    report.skippedLinks = fromJson(QStringLiteral("skippedLinks"));
     return report;
 }
 

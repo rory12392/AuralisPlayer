@@ -5,6 +5,7 @@
 // 每次呼叫記一次；停止後這個數字必須是 0。
 #include "library/migrator.h"
 #include "library/module_database_impl.h"
+#include "test_qt_app.h"
 
 #include <auralis/cover_service.h>
 #include <auralis/dialogs.h>
@@ -186,12 +187,7 @@ private:
 
 /// 模組的工作把結果排回主執行緒（QCoreApplication），所以要有一個（整個測試程式一個）。
 inline void ensureStopApp() {
-    if (QCoreApplication::instance() == nullptr) {
-        static int argc = 1;
-        static char name[] = "auralis_boundary_tests";
-        static char* argv[] = {name, nullptr};
-        static QCoreApplication app(argc, argv);
-    }
+    auralis::test::ensureQtApp("auralis_boundary_tests");
 }
 
 } // namespace auralis::test

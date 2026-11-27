@@ -166,3 +166,35 @@ TEST_CASE("AC-15-2：換歌時先是載入中，找完才有歌詞；沒有在�
     f.loader.clear();
     CHECK(f.view->state() == u"none"_s);
 }
+
+TEST_CASE("AC-17-6：全螢幕主題預設深色，改了寫進 LYR/fullscreenTheme，重新啟動後讀回") {
+    MemorySettings settings;
+    {
+        ViewFixture f(QString(), &settings);
+        CHECK(f.view->fullscreenTheme() == u"dark"_s); // 沒設定＝深色（和 v1.0 相同）
+        int changed = 0;
+        QObject::connect(f.view.get(), &LyricsView::fullscreenThemeChanged, [&] { ++changed; });
+        f.view->setFullscreenTheme(u"light"_s);
+        CHECK(f.view->fullscreenTheme() == u"light"_s);
+        CHECK(settings.value(u"fullscreenTheme"_s, {}).toString() == u"light"_s);
+        CHECK(changed == 1);
+        f.view->setFullscreenTheme(u"light"_s); // 同值不再通知
+        CHECK(changed == 1);
+        f.view->setFullscreenTheme(u"follow"_s);
+        CHECK(changed == 2);
+    }
+    // 重新啟動：新的 Lyrics 從設定讀回
+    ViewFixture again(QString(), &settings);
+    CHECK(again.view->fullscreenTheme() == u"follow"_s);
+}
+
+TEST_CASE("AC-17-6：設定值無效時當成深色；寫入無效值也存成深色") {
+    MemorySettings settings;
+    settings.setValue(u"fullscreenTheme"_s, u"paper"_s);
+    ViewFixture f(QString(), &settings);
+    CHECK(f.view->fullscreenTheme() == u"dark"_s);
+    f.view->setFullscreenTheme(u"light"_s);
+    f.view->setFullscreenTheme(u"sepia"_s);
+    CHECK(f.view->fullscreenTheme() == u"dark"_s);
+    CHECK(settings.value(u"fullscreenTheme"_s, {}).toString() == u"dark"_s);
+}

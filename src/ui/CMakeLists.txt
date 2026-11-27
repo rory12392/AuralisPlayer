@@ -1,6 +1,6 @@
 # 主視窗與共用元件的 QML 模組 Auralis.Ui：Theme 單例與 ThemeController、AppShell、共用元件、字型。
 # 核心的介面服務（UiRegistry、Navigator、Dialogs、Notifier）以 QML_FOREIGN 在這裡註冊成單例。
-find_package(Qt6 6.11 REQUIRED COMPONENTS Gui Qml Quick)
+find_package(Qt6 6.12 REQUIRED COMPONENTS Gui Qml Quick)
 
 qt_add_library(auralis_ui STATIC)
 
@@ -58,6 +58,7 @@ set(ui_qml_files
     shell/QueuePanel.qml
     shell/ScanReportDialog.qml
     shell/AsioTrademark.qml
+    shell/SettingsAppearance.qml
     shell/SettingsFolders.qml
     shell/SettingsPage.qml
     shell/SettingsPlugins.qml

@@ -8,14 +8,16 @@
 namespace auralis::core {
 
 quint64 PlaybackServiceImpl::upcomingId() const {
-    const auto current = m_queue.current();
+    // 還在開檔時，引擎預開的是要開的那首之後的那首
+    const auto current = m_pendingEntry ? m_pendingEntry : m_queue.current();
     const auto next = current ? m_queue.nextAfter(current->id, true) : std::nullopt;
     return next ? next->id : 0;
 }
 
 void PlaybackServiceImpl::afterQueueChange(quint64 upcomingBefore) {
     emit queueChanged();
-    if (m_state == State::Playing && upcomingId() != upcomingBefore) {
+    // 開始中（含從停止或暫停開始）預填可能已經照舊佇列預開了下一首
+    if ((m_state == State::Playing || m_pendingEntry) && upcomingId() != upcomingBefore) {
         m_engine.invalidateNextTrack();
     }
 }
@@ -49,7 +51,8 @@ void PlaybackServiceImpl::playAt(int index) {
 
 void PlaybackServiceImpl::remove(const QList<quint64>& ids) {
     const quint64 before = upcomingId();
-    const auto current = m_queue.current();
+    // 還在開檔時，要開的那首就是「正在播的」
+    const auto current = m_pendingEntry ? m_pendingEntry : m_queue.current();
     const std::unordered_set<quint64> doomed(ids.begin(), ids.end());
     const bool removesCurrent = current && doomed.contains(current->id);
     // 移掉正在播的那首時接著播它後面第一首沒被移掉的
@@ -71,7 +74,7 @@ void PlaybackServiceImpl::remove(const QList<quint64>& ids) {
         afterQueueChange(before);
         return;
     }
-    if (m_state != State::Stopped && successor) {
+    if ((m_state != State::Stopped || m_pendingEntry) && successor) {
         startEntry(m_queue.entry(successor->id));
         return;
     }
@@ -89,6 +92,10 @@ void PlaybackServiceImpl::move(int from, int to) {
 
 void PlaybackServiceImpl::clear() {
     const quint64 before = upcomingId();
+    // 還在開檔時，要開的那首就是「正在播的」：留下它（開好時本來就會成為目前曲目）
+    if (m_pendingEntry && m_queue.entry(m_pendingEntry->id)) {
+        m_queue.setCurrent(m_pendingEntry->id);
+    }
     m_queue.clearExceptCurrent();
     afterQueueChange(before);
 }

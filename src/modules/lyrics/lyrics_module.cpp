@@ -72,9 +72,9 @@ public:
         m_view = std::make_unique<LyricsView>(*m_loader, playback, &host.settings(), switches);
         m_view->setBackdrop(m_backdrop.get());
         LyricsView::setInstance(m_view.get());
-        // 設定頁的「歌詞」分區（S-16）：排在 OUT 的 DSD 10、ReplayGain 20 之後
+        // 設定頁的「歌詞與全螢幕」分區（S-16）：排在 OUT 的 DSD 10、ReplayGain 20 之後
         host.ui().addSettingsSection(
-            {QStringLiteral("lyrics"), QCoreApplication::translate("LyricsModule", "歌詞"),
+            {QStringLiteral("lyrics"), QCoreApplication::translate("LyricsModule", "歌詞與全螢幕"),
              QUrl(QStringLiteral("qrc:/qt/qml/Auralis/Lyr/LyricsSettingsSection.qml")), 30});
         // 面板頁籤順序：正在播放 10、歌詞 20、佇列 30（畫面規格 S-12）
         host.ui().addPanel({QStringLiteral("panel/lyrics"),

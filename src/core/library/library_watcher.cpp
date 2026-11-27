@@ -62,6 +62,8 @@ void LibraryWatcher::start() {
     if (!m_watches.empty()) {
         m_manager.rescan();
     }
+    // 升級前就在音樂庫的曲目補位元率與加入時間；上次沒補完的接著做（AC-10-5）
+    m_manager.startMetaBackfill();
 }
 
 QStringList LibraryWatcher::activeFolders() const {

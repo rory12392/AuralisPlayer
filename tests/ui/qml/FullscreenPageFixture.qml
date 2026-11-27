@@ -11,6 +11,8 @@ Rectangle {
     color: Theme.bg
     focus: true
 
+    // 全螢幕頁要的主題（T-121）：dark／light／follow；FullscreenLightFixture 等改這個值
+    property string fullscreenTheme: "dark"
     property int spaces: 0
     property int arrows: 0
     property bool holdEscape: false
@@ -46,6 +48,21 @@ Rectangle {
             orientation: Qt.Horizontal
             policy: T.ScrollBar.AlwaysOn
             size: 0.3
+        }
+        // 有 Behavior on color 的共用元件（T-121）：全螢幕中換主題時不淡入
+        Button {
+            objectName: "fixtureFullscreenSolid"
+            variant: "solid"
+            text: "實心"
+            focusPolicy: Qt.NoFocus
+        }
+        IconButton {
+            objectName: "fixtureFullscreenToggle"
+            iconName: "contrast"
+            text: "深淺色"
+            checkable: true
+            checked: true
+            focusPolicy: Qt.NoFocus
         }
     }
 }

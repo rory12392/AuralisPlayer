@@ -17,6 +17,7 @@ using auralis::core::EngineTrack;
 using auralis::core::NextTrackProvider;
 using auralis::core::PlaybackEngine;
 using auralis::core::ProcessorChainImpl;
+using auralis::test::cd;
 using auralis::test::fastCapture;
 using auralis::test::makeNoise;
 using auralis::test::MemorySource;
@@ -24,15 +25,6 @@ using auralis::test::startsWithThenSilence;
 using auralis::test::waitFinished;
 
 namespace {
-
-AudioFormat cd() {
-    AudioFormat format;
-    format.rate = 44100;
-    format.bits = 16;
-    format.container = 16;
-    format.channels = 2;
-    return format;
-}
 
 std::unique_ptr<MemorySource> source(const QByteArray& data) {
     return std::make_unique<MemorySource>(cd(), data);

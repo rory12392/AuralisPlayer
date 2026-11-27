@@ -120,7 +120,12 @@ Item {
             tryVerify(() => win.visibility === Window.Windowed && win.width === 960, 3000)
             frameProbe.attach(win, win.shell)
             frameProbe.mark("穩定")
-            waitFrames(win, 2, f => true)
+            // P-54：螢幕關閉、鎖定或沒有互動桌面時視窗不畫新的格子（只在改大小時畫一格），遮罩那一格等不到、
+            // WindowStateKeeper 的保險直接改狀態，逐格紀錄就量不到轉場；這種環境明確略過，不算通過
+            const stable = waitFrames(win, 3, f => true)
+            if (stable.length < 3 || stable[stable.length - 1].swapped <= stable[0].swapped)
+                skip("視窗畫不出新的格子（螢幕關閉、鎖定或沒有互動桌面；穩定時只記到 " + stable.length
+                     + " 格），這個環境量不到進出全螢幕的逐格轉場，要在可見的桌面上跑")
             const normalW = win.width
             const normalH = win.height
 

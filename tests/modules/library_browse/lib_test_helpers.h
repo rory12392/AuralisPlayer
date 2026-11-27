@@ -5,6 +5,7 @@
 #include "library/library_scanner.h"
 #include "library/migrator.h"
 #include "library/sqlite_connection.h"
+#include "test_qt_app.h"
 
 #include <auralis/library_query.h>
 
@@ -20,12 +21,7 @@
 namespace auralis::test {
 
 inline void ensureApp() {
-    if (QCoreApplication::instance() == nullptr) {
-        static int argc = 1;
-        static char name[] = "auralis_lib_tests";
-        static char* argv[] = {name, nullptr};
-        new QCoreApplication(argc, argv); // 整個測試行程共用，不釋放
-    }
+    ensureQtApp("auralis_lib_tests");
 }
 
 /// 跑事件迴圈直到 condition 成立或逾時；回傳 condition 的最後結果。

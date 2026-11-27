@@ -92,6 +92,8 @@ add_library(auralis_core STATIC
     library/migrations/migrations.qrc
     library/migrator.cpp
     library/migrator.h
+    library/meta_backfill.cpp
+    library/meta_backfill.h
     library/module_database_impl.cpp
     library/module_database_impl.h
     library/open_paths.cpp
@@ -100,6 +102,8 @@ add_library(auralis_core STATIC
     library/read_only_stream.cpp
     library/read_only_stream.h
     library/sqlite_connection.h
+    library/stream_bitrate.cpp
+    library/stream_bitrate.h
     library/tag_reader.cpp
     library/tag_reader.h
     library/text_decoder.cpp
@@ -136,6 +140,10 @@ add_library(auralis_core STATIC
     settings/module_settings_impl.h
     settings/output_settings.cpp
     settings/output_settings.h
+    settings/ui_scale.cpp
+    settings/ui_scale.h
+    settings/ui_scale_controller.cpp
+    settings/ui_scale_controller.h
     settings/volume_settings.cpp
     settings/volume_settings.h
     ui/dialogs_impl.cpp
@@ -161,6 +169,8 @@ find_package(uchardet CONFIG REQUIRED)
 target_link_libraries(auralis_core PRIVATE uchardet::libuchardet)
 # 即時音訊執行緒登記 MMCSS「Pro Audio」
 target_link_libraries(auralis_core PRIVATE avrt)
+# 介面縮放：啟動前取每個螢幕的 Windows 縮放（GetDpiForMonitor，shcore；AC-19-4）
+target_link_libraries(auralis_core PRIVATE shcore)
 # FFmpeg（LGPL 建置，DLL 隨程式發佈）：只有核心的音源直接用
 find_package(FFMPEG REQUIRED)
 target_include_directories(auralis_core PRIVATE ${FFMPEG_INCLUDE_DIRS})

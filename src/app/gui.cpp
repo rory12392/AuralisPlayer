@@ -1,12 +1,16 @@
 #include "gui.h"
 
 #include "covers/cover_image_provider.h"
+#include "gui_hooks.h"
+#include "gui_screenshot.h"
 #include "library/open_paths.h"
 #include "modules/core_services.h"
 #include "modules/module_manager.h"
 #include "play_entry.h"
 #include "self_check.h"
 #include "settings/output_settings.h"
+#include "settings/ui_scale.h"
+#include "settings/ui_scale_controller.h"
 #include "settings/volume_settings.h"
 #include "shell/core_bindings.h"
 #include "shell/library_controller.h"
@@ -19,21 +23,13 @@
 #include "soak.h"
 #include "theme/theme_controller.h"
 
-#ifdef AURALIS_DEV_UI
-#include "audio/capture_backend.h"
-#endif
-
-#include <QDir>
-#include <QFileInfo>
 #include <QGuiApplication>
-#include <QImage>
 #include <QLoggingCategory>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QStyleHints>
 #include <QThread>
-#include <QTimer>
 #include <QUrlQuery>
 
 #include <cstdio>
@@ -42,152 +38,6 @@
 Q_LOGGING_CATEGORY(lcGui, "auralis.app")
 
 namespace auralis::app {
-
-namespace {
-
-/// 截圖前等這麼多個畫面，讓 Loader 載入的頁面與字型都畫出來。
-constexpr int kFramesBeforeScreenshot = 3;
-constexpr int kScreenshotSettleMs = 300;
-
-void printLine(FILE* stream, const QString& text) {
-    const QByteArray bytes = text.toUtf8() + '\n';
-    std::fwrite(bytes.constData(), 1, static_cast<size_t>(bytes.size()), stream);
-    std::fflush(stream);
-}
-
-/// 畫面穩定後截圖存檔並結束事件迴圈（結束碼 0 成功、1 失敗）。
-void scheduleScreenshot(QQuickWindow* window, const QString& outPath) {
-    auto frames = std::make_shared<int>(0);
-    auto connection = std::make_shared<QMetaObject::Connection>();
-    *connection = QObject::connect(window, &QQuickWindow::frameSwapped, window, [=] {
-        if (++*frames < kFramesBeforeScreenshot) {
-            window->update();
-            return;
-        }
-        QObject::disconnect(*connection);
-        QTimer::singleShot(kScreenshotSettleMs, window, [window, outPath] {
-            const QImage image = window->grabWindow();
-            QDir().mkpath(QFileInfo(outPath).absolutePath());
-            const bool saved = !image.isNull() && image.save(outPath);
-            printLine(saved ? stdout : stderr, saved ? QStringLiteral("截圖：%1").arg(outPath)
-                                                     : QStringLiteral("截圖失敗：%1").arg(outPath));
-            QCoreApplication::exit(saved ? 0 : 1);
-        });
-    });
-    window->update();
-}
-
-/// 佇列面板一列的曲目資訊從音樂庫查（工作執行緒）；查不到時 CUE 曲目讀 .cue，其他的畫面用檔名。
-std::optional<ui::QueueTrackMeta> lookupTrack(const core::LibraryQueryImpl& library,
-                                              const TrackRef& track) {
-    const auto found = library.findByIdentity(track.path, track.subsong);
-    if (!found.hasValue() || !found.value()) {
-        return cueTrackMeta(track);
-    }
-    const TrackInfo& info = *found.value();
-    return ui::QueueTrackMeta{info.title, info.artist, info.durationMs, info.coverKey};
-}
-
-/// 正在播放面板（S-11）的目前曲目資訊（工作執行緒）：專輯的曲目數再查一次音樂庫，
-/// 位元率用音樂檔大小（只讀目錄資訊，不開檔）；CUE 曲目只是整軌檔的一段，位元率不算。
-std::optional<ui::NowPlayingInfo> lookupNowPlaying(const core::LibraryQueryImpl& library,
-                                                   const TrackRef& track) {
-    const auto found = library.findByIdentity(track.path, track.subsong);
-    if (!found.hasValue() || !found.value()) {
-        return std::nullopt;
-    }
-    const TrackInfo& info = *found.value();
-    int trackTotal = 0;
-    if (info.albumId > 0) {
-        TrackFilter filter;
-        filter.albumId = info.albumId;
-        const auto albumTracks = library.tracks(filter);
-        trackTotal = albumTracks.hasValue() ? static_cast<int>(albumTracks.value().size()) : 0;
-    }
-    const qint64 fileBytes = info.startCdFrame >= 0 ? -1 : QFileInfo(track.path).size();
-    return ui::nowPlayingFrom(info, trackTotal, fileBytes);
-}
-
-/// 輸出面板（S-14）接核心：裝置清單來自 OutputRegistry（工作執行緒，只列舉不開裝置），
-/// 切換與目前的選擇經 PlaybackService；選了的輸出記進 settings.ini，重新啟動後沿用。
-ui::OutputHooks outputHooks(core::CoreServices& services, const QString& settingsPath) {
-    ui::OutputHooks hooks;
-    hooks.list = [&outputs = services.outputs] {
-        QList<ui::OutputOption> options;
-        for (const auto& factory : outputs.factories()) {
-            const QString note = factory->note();
-            for (const OutputDevice& device : factory->devices()) {
-                options.append({factory->name(), device.id, device.name, note});
-            }
-        }
-        return options;
-    };
-    hooks.select = [&playback = services.playback, settingsPath](const ui::OutputOption& option) {
-        return core::selectOutput(playback, settingsPath,
-                                  {option.backend, option.deviceId, option.deviceName});
-    };
-    hooks.current = [&playback = services.playback] {
-        const auto choice = playback.outputChoice();
-        return ui::OutputOption{choice.backend, choice.deviceId, choice.deviceName, {}};
-    };
-    return hooks;
-}
-
-#ifdef AURALIS_DEV_UI
-/// 開發建置的截圖用：--screenshot "shell?queue=<資料夾>[&state=paused][&output=open]"
-/// （另有 &panel=closed，在 runGui 處理）把資料夾加進音樂庫、
-/// 掃描完把裡面的音樂檔放進佇列從第一首播，讓播放列與佇列面板有內容可截。輸出用 Capture 後端，
-/// 不開實體音訊裝置、不發聲。準備好（再等曲目資訊查好、進度走一點）時呼叫 ready。
-void startDemoQueue(core::CoreServices& services, const QVariantMap& params,
-                    std::function<void()> ready) {
-    const QString folder = params.value(QStringLiteral("queue")).toString();
-    const bool paused = params.value(QStringLiteral("state")).toString() == QLatin1String("paused");
-    services.playback.setOutputBackend(std::make_unique<core::CaptureBackend>());
-    auto enqueue = [&services, folder, paused, ready] {
-        QList<TrackRef> tracks;
-        const QFileInfoList files = QDir(folder).entryInfoList(
-            {QStringLiteral("*.flac"), QStringLiteral("*.mp3"), QStringLiteral("*.wav")},
-            QDir::Files, QDir::Name);
-        for (const QFileInfo& file : files) {
-            tracks.append({QDir::toNativeSeparators(file.absoluteFilePath()), 0});
-        }
-        services.playback.playFrom(tracks, 0);
-        if (paused) {
-            services.playback.pause();
-        }
-        QTimer::singleShot(1500, &services.playback, ready);
-    };
-    auto connection = std::make_shared<QMetaObject::Connection>();
-    *connection = QObject::connect(&services.library, &LibraryQuery::scanFinished,
-                                   &services.playback, [connection, enqueue] {
-                                       QObject::disconnect(*connection);
-                                       enqueue();
-                                   });
-    if (services.libraryManager.addFolder(folder) != core::LibraryManager::AddResult::Added) {
-        QObject::disconnect(*connection);
-        enqueue();
-    }
-}
-
-/// 開發建置的截圖用：--screenshot "welcome?library=<資料夾>" 或
-/// "settings?library=<資料夾>[&report=open]"：和按「加入音樂資料夾」一樣經 Library 加入，
-/// 掃描完（每個資料夾的曲目數也查好）再呼叫 ready。
-void startDemoLibrary(core::CoreServices& services, ui::LibraryController& library,
-                      const QString& folder, std::function<void()> ready) {
-    auto connection = std::make_shared<QMetaObject::Connection>();
-    *connection = QObject::connect(&services.library, &LibraryQuery::scanFinished, &library,
-                                   [connection, ready] {
-                                       QObject::disconnect(*connection);
-                                       QTimer::singleShot(500, ready);
-                                   });
-    if (!library.addFolder(folder)) {
-        QObject::disconnect(*connection);
-        ready();
-    }
-}
-#endif
-
-} // namespace
 
 int runGui(const GuiOptions& options, core::CoreServices& services, core::ModuleManager& modules,
            const QString& settingsPath, const QElapsedTimer& sinceStart) {
@@ -201,6 +51,16 @@ int runGui(const GuiOptions& options, core::CoreServices& services, core::Module
         theme.overrideMode(options.theme);
     }
     QCoreApplication::instance()->installNativeEventFilter(&theme);
+    // 介面縮放（AC-19-4）：比例在 QGuiApplication 建立前就決定了，這裡只給設定頁用
+    const core::UiScaleStartup& scale = core::startupUiScale();
+    qCInfo(lcGui).noquote() << QStringLiteral("介面縮放：設定 %1，這次 %2")
+                                   .arg(scale.setting, scale.applied > 0
+                                                           ? core::percentText(scale.applied)
+                                                           : QStringLiteral("跟隨系統"));
+    core::UiScaleController uiScale(settingsPath, scale.setting, [&services] {
+        return core::monitorOfWindow(services.platformWindow.hwnd());
+    });
+    core::UiScaleController::setInstance(&uiScale);
     ui::ShellState shell(settingsPath);
     if (options.size.isValid()) {
         shell.useFixedSize(options.size.width(), options.size.height());
@@ -268,10 +128,23 @@ int runGui(const GuiOptions& options, core::CoreServices& services, core::Module
         return 1;
     }
     services.platformWindow.setHwnd(static_cast<quintptr>(window->winId()));
+    if (!options.size.isValid()) {
+        // 關閉時記下的視窗位置是這次比例的邏輯座標：一起記下這次實際套用的比例，
+        // 下次啟動用它認出螢幕（固定大小的截圖模式不記位置，也不記比例）。主視窗只在一般
+        // 視窗時記位置（WindowStateKeeper.save），所以用同一個條件決定記不記比例
+        QObject::connect(window, &QQuickWindow::closing, window,
+                         [settingsPath, applied = scale.applied, window] {
+                             core::saveAppliedUiScaleOnClose(
+                                 settingsPath, applied, window->visibility() == QWindow::Windowed);
+                         });
+    }
     modules.startAll();
     // 套用記住的輸出（模組的輸出路徑在 startAll 時登記，所以在它之後）；不開裝置。
     // 記住的裝置不在時用預設裝置，並在狀態列說明
-    output.setNotice(core::restoreOutput(services.playback, settingsPath));
+    // 記住的介面縮放這次放不下、改用跟隨系統時，也在狀態列的同一個位置說明
+    QStringList notices{core::restoreOutput(services.playback, settingsPath), scale.notice};
+    notices.removeAll(QString());
+    output.setNotice(notices.join(QStringLiteral("　")));
     output.refreshDevices();
 
     // 頁面 id 可以帶開頁參數：dev/ui?section=lists&open=menu

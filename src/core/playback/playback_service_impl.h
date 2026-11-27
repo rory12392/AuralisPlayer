@@ -11,8 +11,12 @@
 
 #include <QTimer>
 
+#include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <unordered_map>
 
 namespace auralis::core {
@@ -25,6 +29,10 @@ inline qint64 framesPerSecond(const AudioFormat& format) {
 /// PlaybackService 的實作：佇列（PlaybackQueue）＋播放引擎＋下一首提供者。
 /// UI 執行緒擁有；引擎在解碼執行緒向它要下一首（nextTrackAfter），那裡只讀佇列、開檔、記 token。
 /// 正在聽哪一首、播完沒、裝置錯誤都由 50 毫秒的計時器輪詢引擎得知（poll）。
+/// 開始播放（開檔、探測格式、開裝置、預填緩衝）在自己的背景執行緒做，UI 執行緒只送出要求，
+/// 完成時在 UI 執行緒收到結果再發狀態訊號（Architecture §5）。要求有序號：之後的操作（播放別首、
+/// 停止、跳轉、暫停）取代還沒完成的要求，舊的結果晚到時丟掉。要求還沒完成時引擎歸背景執行緒，
+/// UI 執行緒不碰它（音量除外）。
 class PlaybackServiceImpl final : public PlaybackService, private NextTrackProvider {
     Q_OBJECT
 
@@ -88,6 +96,9 @@ public:
     OutputChoice outputChoice() const { return m_choice; }
     /// 核心內部：輪詢一次引擎（計時器每 50 毫秒呼叫；測試直接呼叫）。
     void poll();
+    /// 核心內部：等送出的開始播放要求在背景做完（含開不了而接著送出的下一首），結果在這裡處理，
+    /// 回傳時狀態訊號都已發出。會等開檔，所以只給換輸出（switchOutput）、命令列截圖與測試用。
+    void waitForStart();
     /// 核心內部：給測試讀欠載次數。
     const PlaybackEngine& engine() const { return m_engine; }
 
@@ -103,11 +114,47 @@ private:
     std::optional<EngineTrack> nextTrack() override { return std::nullopt; }
     std::optional<EngineTrack> nextTrackAfter(quint64 token) override;
 
+    /// 背景執行緒的一個要求：開始播放 entry，或（entry 空的）只把引擎停下來。
+    struct StartJob {
+        quint64 seq = 0;
+        std::optional<QueueEntry> entry;
+        qint64 offsetMs = 0;
+        IOutputBackend* backend = nullptr;
+        std::shared_ptr<DsdSink> dsdSink;
+    };
+    /// 要求做完的結果（交回 UI 執行緒）。
+    struct StartResult {
+        quint64 seq = 0;
+        std::optional<QueueEntry> entry;
+        qint64 offsetMs = 0;
+        /// 開不了檔（AC-01-3）。
+        std::optional<Error> openError;
+        /// 開了檔但輸出開不了或啟動失敗；種類與 DSD 包裝器不相容在下面兩欄。
+        std::optional<Error> startError;
+        OutputErrorKind errorKind = OutputErrorKind::Other;
+        bool dsdRejected = false;
+        quint64 token = 0;
+        AudioFormat outputFormat;
+    };
+
     /// 開檔並登記 token；可以在任何執行緒呼叫。
     Result<EngineTrack> openTrack(const QueueEntry& entry, qint64 offsetMs);
     std::optional<TokenInfo> tokenInfo(quint64 token) const;
-    /// 從 entry 的 offsetMs 開始播；開不了的跳到下一首（AC-01-3）。沒有能播的就停止。
-    bool startEntry(std::optional<QueueEntry> entry, qint64 offsetMs = 0);
+    /// 從 entry 的 offsetMs 開始播（送出要求，不等）；開不了的跳到下一首（AC-01-3）。
+    /// 沒有能播的就停止。
+    void startEntry(std::optional<QueueEntry> entry, qint64 offsetMs = 0);
+    /// startEntry 與跳過開不了的曲目時用：照 m_startTries 限制最多試整個佇列一輪。
+    void requestStart(std::optional<QueueEntry> entry, qint64 offsetMs);
+    /// 把要求交給背景執行緒（取代還沒開始的那個）；之後引擎歸背景執行緒，直到結果回來。
+    void postJob(StartJob job);
+    /// 背景執行緒：一個一個做要求。
+    void starterLoop();
+    StartResult runJob(StartJob job);
+    /// UI 執行緒：處理背景交回的結果（舊序號的丟掉）。
+    void drainStartResults();
+    void finishStart(const StartResult& result);
+    /// 開不了或裝置不支援：記下、接著試下一首。
+    void skipAndContinue(const QueueEntry& entry, const QString& reason);
     /// 記下開不了的曲目並通知（AC-01-3）。
     void markUnplayable(const QueueEntry& entry, const QString& reason);
     IOutputBackend* ensureBackend();
@@ -149,6 +196,25 @@ private:
     /// 目前的曲目能不能調音量（DSD 直通時不能）；停止時回到 true。
     bool m_volumeAvailable = true;
     QTimer m_timer;
+    /// 有要求還沒回來：引擎在背景執行緒手上，poll() 與輸出狀態不讀它。
+    bool m_starting = false;
+    /// 還沒回來的開始播放要求的曲目與位置（只停止的要求沒有）；上下首、跳轉、暫停以它為準。
+    std::optional<QueueEntry> m_pendingEntry;
+    qint64 m_pendingOffset = 0;
+    /// 這次開始還能試幾首（開不了的一首一首跳過，最多整個佇列一輪）。
+    qsizetype m_startTries = 0;
+
+    // 背景執行緒與 UI 執行緒交接要求與結果（m_startMutex 保護）
+    std::mutex m_startMutex;
+    std::condition_variable m_startWake;
+    std::condition_variable m_startIdle;
+    std::optional<StartJob> m_job;
+    bool m_jobRunning = false;
+    bool m_quit = false;
+    std::deque<StartResult> m_results;
+    /// 最新要求的序號；背景執行緒看到不同就放棄手上的要求。
+    std::atomic<quint64> m_startSeq{0};
+    std::thread m_starter;
 
     // 最後宣告、最先解構：引擎停下來之後才拆掉它會呼叫的佇列與 token 表
     PlaybackEngine m_engine;

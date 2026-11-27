@@ -60,5 +60,8 @@ core::DialogsImpl* DialogsForeign::create(QQmlEngine*, QJSEngine*) {
 core::NotifierImpl* NotifierForeign::create(QQmlEngine*, QJSEngine*) {
     return owned(detail::notifier());
 }
+core::UiScaleController* UiScaleForeign::create(QQmlEngine*, QJSEngine*) {
+    return owned(core::UiScaleController::instance());
+}
 
 } // namespace auralis::ui

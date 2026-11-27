@@ -18,7 +18,8 @@ const QString kTrackSelect = QStringLiteral(
     "t.album_artist, t.album, t.composer, t.genre, t.year, t.disc_no, t.track_no, "
     "t.duration_ms, t.codec, t.sample_rate, t.bits, t.channels, t.dsd_rate, t.rg_track_gain, "
     "t.rg_track_peak, t.rg_album_gain, t.rg_album_peak, t.has_embedded_lyrics, t.cover_key, "
-    "t.start_cdframe, t.end_cdframe FROM tracks t JOIN files f ON f.id = t.file_id");
+    "t.start_cdframe, t.end_cdframe, t.bitrate, t.added_at FROM tracks t "
+    "JOIN files f ON f.id = t.file_id");
 
 std::optional<double> optionalDouble(const QVariant& value) {
     return value.isValid() ? std::optional<double>(value.toDouble()) : std::nullopt;
@@ -53,6 +54,8 @@ TrackInfo toTrack(const QVariantList& row) {
     track.coverKey = row[25].toString();
     track.startCdFrame = row[26].isValid() ? row[26].toLongLong() : -1;
     track.endCdFrame = row[27].isValid() ? row[27].toLongLong() : -1;
+    track.bitrate = row[28].isValid() ? std::optional<int>(row[28].toInt()) : std::nullopt;
+    track.addedAt = row[29].isValid() ? std::optional<qint64>(row[29].toLongLong()) : std::nullopt;
     return track;
 }
 
@@ -217,9 +220,16 @@ Result<QList<TrackInfo>> LibraryQueryImpl::tracks(const TrackFilter& filter) con
     QString where = QStringLiteral(" WHERE 1 = 1");
     QVariantList params;
     addFilter(filter, where, params);
-    const QString order = QStringLiteral(
-        " ORDER BY t.album_artist COLLATE NOCASE, t.album COLLATE NOCASE, t.disc_no, t.track_no, "
-        "f.path_key, t.subsong LIMIT ? OFFSET ?");
+    // 依位元率、加入時間排序時，沒有值的（未知、還在補值）不論升降冪都放最後
+    QString order = QStringLiteral(" ORDER BY ");
+    if (filter.sort != TrackSort::Default) {
+        order += (filter.sort == TrackSort::Bitrate ? QStringLiteral("t.bitrate")
+                                                    : QStringLiteral("t.added_at")) +
+                 (filter.descending ? QStringLiteral(" DESC") : QStringLiteral(" ASC")) +
+                 QStringLiteral(" NULLS LAST, ");
+    }
+    order += QStringLiteral("t.album_artist COLLATE NOCASE, t.album COLLATE NOCASE, t.disc_no, "
+                            "t.track_no, f.path_key, t.subsong LIMIT ? OFFSET ?");
     params << filter.limit << filter.offset;
     const auto rows = db.value()->query(kTrackSelect + where + order, params);
     if (!rows) {

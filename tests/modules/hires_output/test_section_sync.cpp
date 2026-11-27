@@ -8,6 +8,7 @@
 #include "fake_playback_service.h"
 #include "replay_gain.h"
 #include "replay_gain_controller.h"
+#include "test_qt_app.h"
 
 #include "shell/output_controller.h"
 #include "theme/theme_controller.h"
@@ -38,12 +39,7 @@ namespace {
 
 /// QML 要 QGuiApplication；ctest 每個測試案例各自一個行程，所以這裡建立的就是這個行程唯一的。
 void ensureGuiApp() {
-    static int argc = 1;
-    static char name[] = "auralis_out_tests";
-    static char* argv[] = {name, nullptr};
-    if (QCoreApplication::instance() == nullptr) {
-        new QGuiApplication(argc, argv);
-    }
+    auralis::test::ensureQtApp<QGuiApplication>("auralis_out_tests");
     REQUIRE(qobject_cast<QGuiApplication*>(QCoreApplication::instance()) != nullptr);
 }
 

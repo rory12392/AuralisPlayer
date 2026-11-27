@@ -73,10 +73,13 @@ T.TextField {
         border.width: Theme.hairline
         border.color: control.activeFocus ? Theme.ink : Theme.lineStrong
 
-        // Templates 的 TextField 不畫提示文字，由這裡畫
+        // Templates 的 TextField 不畫提示文字，由這裡畫；框窄時（最小視窗）截斷在框內
         Text {
+            objectName: "searchPlaceholder"
             visible: control.length === 0 && control.preeditText.length === 0
             x: control.leftPadding
+            width: Math.max(0, control.width - control.leftPadding - control.rightPadding)
+            elide: Text.ElideRight
             anchors.verticalCenter: parent.verticalCenter
             text: control.placeholderText
             font: Theme.body

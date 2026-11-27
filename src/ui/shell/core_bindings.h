@@ -1,5 +1,6 @@
 #pragma once
 
+#include "settings/ui_scale_controller.h"
 #include "ui/dialogs_impl.h"
 #include "ui/ui_registry_impl.h"
 
@@ -66,6 +67,16 @@ struct NotifierForeign {
     QML_SINGLETON
 public:
     static core::NotifierImpl* create(QQmlEngine*, QJSEngine*);
+};
+
+/// 設定頁的介面縮放（AC-19-4）：主程式在建立 QML 引擎前用 UiScaleController::setInstance 放好實例。
+struct UiScaleForeign {
+    Q_GADGET
+    QML_FOREIGN(auralis::core::UiScaleController)
+    QML_NAMED_ELEMENT(UiScale)
+    QML_SINGLETON
+public:
+    static core::UiScaleController* create(QQmlEngine*, QJSEngine*);
 };
 
 } // namespace auralis::ui

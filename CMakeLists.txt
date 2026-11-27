@@ -14,7 +14,7 @@ if(AURALIS_WITH_ASIO)
     list(APPEND VCPKG_MANIFEST_FEATURES "asio")
 endif()
 
-project(AuralisPlayer VERSION 1.0.0 DESCRIPTION "Windows 桌面音樂播放器" LANGUAGES CXX)
+project(AuralisPlayer VERSION 1.1.0 DESCRIPTION "Windows 桌面音樂播放器" LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,8 +36,8 @@ include(cmake/AuralisHiresDeps.cmake)
 set(CMAKE_INSTALL_BINDIR "." CACHE PATH "安裝時執行檔的位置（相對於安裝根目錄）")
 
 # Network 只給歌詞模組（LYR）連 LRCLIB；其他目標連結它時設定失敗（cmake/AuralisNetworkGuard.cmake）
-find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
-qt_standard_project_setup(REQUIRES 6.11)
+find_package(Qt6 6.12 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
+qt_standard_project_setup(REQUIRES 6.12)
 # QML 模組照 URI 放在 build/<preset>/qml/ 底下，qmllint 才找得到 import Auralis.Ui
 set(QT_QML_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/qml)
 

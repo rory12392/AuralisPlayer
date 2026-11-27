@@ -1,8 +1,5 @@
 // 掃描流程：唯讀（AC-08-4）、讀不到的檔案記進報告（AC-08-5）、增量、進度與取消（AC-08-1）。
-#include "library/library_scanner.h"
-#include "library/migrator.h"
-#include "library/sqlite_connection.h"
-#include "library_fixtures.h"
+#include "scan_fixture.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -23,34 +20,7 @@ using namespace auralis::test;
 
 namespace {
 
-struct Fixture {
-    QString dir;
-    QString root;
-    std::unique_ptr<SqliteConnection> db;
-    QList<LibraryRoot> roots;
-
-    explicit Fixture(const QString& name) {
-        dir = freshTestDir(name);
-        root = dir + QStringLiteral("\\音樂");
-        const QString dbPath = dir + QStringLiteral("\\library.db");
-        REQUIRE(migrateDatabase(dbPath).hasValue());
-        auto opened = SqliteConnection::open(dbPath);
-        REQUIRE(opened.hasValue());
-        db = std::move(opened).value();
-        LibraryWriter writer(*db);
-        roots.append({writer.ensureRoot(root), root});
-    }
-
-    ScanReport scan(const ScanCallbacks& callbacks = {}) {
-        return scanLibrary(*db, roots, callbacks);
-    }
-
-    qint64 count(const QString& sql) {
-        const auto rows = db->query(sql);
-        REQUIRE(rows.hasValue());
-        return rows.value().first().first().toLongLong();
-    }
-};
+using Fixture = ScanFixture;
 
 /// 每個檔案與資料夾：內容雜湊（資料夾為空）＋最後修改時間（100 奈秒精度）＋大小。
 QMap<QString, QString> snapshot(const QString& root) {

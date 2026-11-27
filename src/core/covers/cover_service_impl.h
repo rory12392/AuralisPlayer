@@ -1,6 +1,7 @@
 #pragma once
 
 #include <auralis/cover_service.h>
+#include <auralis/job_gate.h>
 
 #include <QMutex>
 
@@ -39,6 +40,18 @@ public:
     /// 縮圖快取的資料夾；沒有資料庫時為空字串。
     QString cacheDir() const;
 
+    /// 影像提供者的讀圖工作過這個閘門（工作開頭 Pass，沒過就不碰這個物件）。影像提供者由 QML 引擎
+    /// 擁有，什麼時候解構不由核心決定，可能晚於核心服務；所以提供者與它的工作各持有一份閘門，
+    /// 這個物件解構時關閉閘門並等進行中的讀圖做完，之後才關資料庫連線。任何執行緒。
+    std::shared_ptr<JobGate> gate() const { return m_gate; }
+
+    /// 關閉閘門：之後才開始的讀圖直接回傳錯誤，已經開始的最多等 timeoutMs 毫秒（逾時寫日誌）。
+    /// 解構時會呼叫；可以重複呼叫。只在 UI 執行緒。
+    void shutdown(int timeoutMs = kShutdownTimeoutMs);
+
+    /// 和模組停止時等背景工作的上限相同。
+    static constexpr int kShutdownTimeoutMs = 7000;
+
 private:
     struct Entry {
         QString source;
@@ -53,6 +66,7 @@ private:
     const QString& m_databasePath;
     QMutex m_mutex;
     std::unique_ptr<SqliteConnection> m_db;
+    std::shared_ptr<JobGate> m_gate = std::make_shared<JobGate>();
 };
 
 /// 從來源（covers.source）讀圖並解碼，長邊不超過 maxSide。內嵌圖經 TagLib 唯讀讀出，

@@ -61,22 +61,22 @@ License: GNU General Public License, version 3 only (GPL-3.0-only, LICENSE)
 3. Third-party components
 -------------------------
 
-3.1 Qt 6.11.3
+3.1 Qt 6.12.1
     Copyright (C) The Qt Company Ltd. and other contributors.
     License: GNU Lesser General Public License v3 (LGPLv3). The LGPLv3
     text is at the end of this file; LGPLv3 incorporates the GNU General
     Public License v3, whose text is in licenses/GPL-3.0.txt.
-    Qt is used unmodified, from the official Qt 6.11.3 binaries for
+    Qt is used unmodified, from the official Qt 6.12.1 binaries for
     msvc2022_64.
-    Source code of the Qt 6.11.3 modules in this package (the git commit
+    Source code of the Qt 6.12.1 modules in this package (the git commit
     of each module is the one recorded in the software bill of materials
-    of the Qt 6.11.3 installation):
-      qtbase 6.11.3 (commit b21f6a785516e898388cda2fe5d3e7dacd6d4b7d)
-        https://download.qt.io/official_releases/qt/6.11/6.11.3/submodules/qtbase-everywhere-src-6.11.3.tar.xz
-      qtdeclarative 6.11.3 (commit 95e4ceccb77c82411f8a048eda4360e5967f4e60)
-        https://download.qt.io/official_releases/qt/6.11/6.11.3/submodules/qtdeclarative-everywhere-src-6.11.3.tar.xz
-      qtsvg 6.11.3 (commit f5d99721911e4a1989965a087813cf1277519bc6)
-        https://download.qt.io/official_releases/qt/6.11/6.11.3/submodules/qtsvg-everywhere-src-6.11.3.tar.xz
+    of the Qt 6.12.1 installation):
+      qtbase 6.12.1 (commit 5af1a37e31a869cd6eb8a73d82e2c71a450e6634)
+        https://download.qt.io/official_releases/qt/6.12/6.12.1/submodules/qtbase-everywhere-src-6.12.1.tar.xz
+      qtdeclarative 6.12.1 (commit c0200bd58c47fbd757481c35349302f49a8a09fc)
+        https://download.qt.io/official_releases/qt/6.12/6.12.1/submodules/qtdeclarative-everywhere-src-6.12.1.tar.xz
+      qtsvg 6.12.1 (commit ce2d9787bf7c6e4d9ab79b33b99ebbcfec7aef00)
+        https://download.qt.io/official_releases/qt/6.12/6.12.1/submodules/qtsvg-everywhere-src-6.12.1.tar.xz
     Modules in this package (Qt6*.dll and the plugins/ and qml/ folders):
       Qt Core, Qt Gui, Qt OpenGL, Qt Network, Qt Svg, Qt Qml, Qt QmlMeta,
       Qt QmlModels, Qt QmlWorkerScript, Qt Quick, Qt Quick Controls 2
@@ -84,24 +84,26 @@ License: GNU General Public License, version 3 only (GPL-3.0-only, LICENSE)
       Qt Quick Effects, Qt Quick Layouts, Qt Quick Shapes,
       Qt Labs FolderListModel. All of them are available under LGPLv3;
       no GPL-only Qt module is included.
-    Third-party code built into these Qt binaries (from the Qt 6.11.3
+    Third-party code built into these Qt binaries (from the Qt 6.12.1
     software bill of materials, sbom/*.spdx.json in the Qt installation):
-      - libjpeg-turbo 3.2.0 (qjpeg image plugin): IJG License and
+      - libjpeg-turbo 3.2.1 (qjpeg image plugin): IJG License and
         BSD-3-Clause.
         "This software is based in part on the work of the Independent
         JPEG Group."
       - libpng 1.6.59: libpng License
-      - zlib 1.3.2: zlib License
+      - zlib 1.4: zlib License
       - FreeType 2.15.0: FreeType License (FTL)
         "Portions of this software are copyright (C) The FreeType Project
         (www.freetype.org). All rights reserved."
-      - HarfBuzz 14.6.0: MIT
+      - HarfBuzz 15.1.0: MIT
       - PCRE2 10.49: BSD-3-Clause (with PCRE2 binary-like packages
         exception)
       - double-conversion 3.4.0, easing equations, RFC 6234 SHA code,
         libpsl: BSD-3-Clause
-      - TinyCBOR 7.0, md4c 0.6.0, Vulkan Memory Allocator 3.2.1,
-        D3D12 Memory Allocator, Yoga 2.0.1: MIT
+      - TinyCBOR 7.1, md4c 0.6.0, Vulkan Memory Allocator 3.3.0,
+        D3D12 Memory Allocator 3.1.0, Yoga 2.0.1: MIT
+      - XSVG 0.2.1 (SVG rendering in Qt Gui and Qt Svg): HPND
+        (sell variant)
       - SHA-3 endian helpers, masm (QtQml JIT): BSD-2-Clause
       - SipHash, MD4, MD5, SHA-3 Keccak: CC0-1.0; BLAKE2: CC0-1.0 or
         Apache-2.0; SHA-1: public domain
@@ -123,46 +125,46 @@ License: GNU General Public License, version 3 only (GPL-3.0-only, LICENSE)
     Source code: FFmpeg tag n9.0.2, the archive fetched by vcpkg
       https://github.com/ffmpeg/ffmpeg/archive/n9.0.2.tar.gz
     with the build scripts and patches of the vcpkg port "ffmpeg" 9.0.2#7
-    at vcpkg commit e54ef0fcc9a82033a61e51002552a910a5d57282:
-      https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/ffmpeg
+    at vcpkg commit f4c425bd7750eea5f9b59d7df2b818d3298a5e58:
+      https://github.com/microsoft/vcpkg/tree/f4c425bd7750eea5f9b59d7df2b818d3298a5e58/ports/ffmpeg
 
 3.3 TagLib 2.3.1
     Copyright (C) Scott Wheeler and the TagLib authors.
     License: GNU Lesser General Public License v2.1 (licenses/TagLib.txt),
     or Mozilla Public License 1.1 (licenses/TagLib-MPL-1.1.txt).
     AuralisPlayer uses TagLib under LGPL v2.1.
-    TagLib includes UTF8-CPP 4.2.1 (Boost Software License 1.0,
+    TagLib includes UTF8-CPP 5.0.0 (Boost Software License 1.0,
     licenses/utfcpp.txt).
     Source code: https://github.com/taglib/taglib/archive/v2.3.1.tar.gz
-      and https://github.com/nemtrif/utfcpp/archive/v4.2.1.tar.gz, with
-      https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/taglib
-      https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/utfcpp
+      and https://github.com/nemtrif/utfcpp/archive/v5.0.0.tar.gz, with
+      https://github.com/microsoft/vcpkg/tree/f4c425bd7750eea5f9b59d7df2b818d3298a5e58/ports/taglib
+      https://github.com/microsoft/vcpkg/tree/f4c425bd7750eea5f9b59d7df2b818d3298a5e58/ports/utfcpp
 
 3.4 uchardet 0.0.8
     License: Mozilla Public License 1.1, or GNU General Public License v2,
     or GNU Lesser General Public License v2.1 (all three texts in
     licenses/uchardet.txt). AuralisPlayer uses uchardet under LGPL v2.1.
     Source code: https://gitlab.freedesktop.org/uchardet/uchardet/-/archive/v0.0.8/uchardet-v0.0.8.tar.gz
-      and https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/uchardet
+      and https://github.com/microsoft/vcpkg/tree/f4c425bd7750eea5f9b59d7df2b818d3298a5e58/ports/uchardet
 
 3.5 SQLite 3.54.1
     SQLite is in the public domain (licenses/SQLite.txt,
     https://www.sqlite.org/copyright.html).
     Source code: https://sqlite.org/2026/sqlite-autoconf-3540100.tar.gz and
-      https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/sqlite3
+      https://github.com/microsoft/vcpkg/tree/f4c425bd7750eea5f9b59d7df2b818d3298a5e58/ports/sqlite3
 
 3.6 libebur128 1.2.6
     Copyright (c) 2011 Jan Kokemüller
     License: MIT (licenses/libebur128.txt)
     Source code: https://github.com/jiixyj/libebur128/archive/v1.2.6.tar.gz and
-      https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/libebur128
+      https://github.com/microsoft/vcpkg/tree/f4c425bd7750eea5f9b59d7df2b818d3298a5e58/ports/libebur128
 
-3.7 zlib 1.3.2 (z.dll)
+3.7 zlib 1.4 (libz.dll)
     (C) 1995-2026 Jean-loup Gailly and Mark Adler
     License: zlib License (licenses/zlib.txt)
-    Source code: https://github.com/madler/zlib/archive/v1.3.2.tar.gz and
-      https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/zlib
-      (the port applies patches, including CVE-2026-76844.patch)
+    Source code: https://github.com/madler/zlib/archive/v1.4.tar.gz and
+      https://github.com/microsoft/vcpkg/tree/f4c425bd7750eea5f9b59d7df2b818d3298a5e58/ports/zlib
+      (the port applies 0001-no-version-script-on-ohos.patch)
 
 3.8 Microsoft components
     Not distributed with this package. AuralisPlayer does not use the
@@ -179,7 +181,7 @@ License: GNU General Public License, version 3 only (GPL-3.0-only, LICENSE)
       SHA-256 d5ebf0c20dd2c5f43771fd0c1418f4b361bf52434ee670097cfa6b3a335e2eca),
       with the patch fix-new-delete-mismatch.patch of the vcpkg port
       "asiosdk" 2.3.4#2:
-      https://github.com/microsoft/vcpkg/tree/e54ef0fcc9a82033a61e51002552a910a5d57282/ports/asiosdk
+      https://github.com/microsoft/vcpkg/tree/f4c425bd7750eea5f9b59d7df2b818d3298a5e58/ports/asiosdk
     Copyright (c) 2025, Steinberg Media Technologies GmbH.
     License: the SDK's LICENSE.txt (licenses/ASIO-SDK.txt) offers a) the
     Steinberg ASIO License or b) the General Public License (GPL) Version

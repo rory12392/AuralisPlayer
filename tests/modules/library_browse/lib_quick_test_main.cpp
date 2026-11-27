@@ -1,6 +1,6 @@
 // 音樂庫瀏覽模組的 Qt Quick Test（qml/tst_*.qml）：專輯頁（S-03，T-22）的鍵盤操作與三種檢視；
 // 藝人頁、資料夾頁（S-05、S-06，T-23）的鍵盤操作；專輯詳細頁（S-04，T-24）；
-// 各清單的選取、右鍵選單與拖放（T-25）。
+// 各清單的選取、右鍵選單與拖放（T-25）；曲目清單的位元率、加入時間兩欄與排序（T-115）。
 // 頁面用到 Auralis.Ui 的共用元件與核心的介面服務（Navigator、Library），所以和介面測試一樣
 // 先放好 ThemeController 與 CoreServices；LibraryAlbums、LibrarySearch 背後是記憶體裡的音樂庫，
 // 播放是假的 PlaybackService（QML 以 fakePlayback 取用）。用 offscreen 平台跑（ctest 設定），
@@ -20,11 +20,13 @@
 #include "theme/theme_controller.h"
 #include "track_columns_setting.h"
 
+#include <QDateTime>
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QtQml/qqmlextensionplugin.h>
 #include <QtQuickTest>
 
+#include <algorithm>
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -49,7 +51,36 @@ TrackInfo makeTrack(qint64 albumId, int no, const QString& codec, int rate, int 
     t.codec = codec;
     t.sampleRate = rate;
     t.bits = bits;
+    // T-115：專輯 2 沒有位元率、專輯 5 沒有加入時間（補值中）；有值的位元率隨專輯遞減
+    if (albumId != 2) {
+        t.bitrate = 3000 - static_cast<int>(albumId) * 100 - no;
+    }
+    if (albumId != 5) {
+        t.addedAt =
+            QDateTime(QDate(2026, 1, static_cast<int>(albumId)), QTime(12, no)).toMSecsSinceEpoch();
+    }
     return t;
+}
+
+/// 依位元率或加入時間排序（同 LibraryQuery::tracks：沒有值的不論升降冪都排最後，同值照原順序）。
+void sortTracks(QList<TrackInfo>& tracks, const TrackFilter& filter) {
+    if (filter.sort == TrackSort::Default) {
+        return;
+    }
+    const auto key = [&filter](const TrackInfo& t) -> std::optional<qint64> {
+        if (filter.sort == TrackSort::Bitrate) {
+            return t.bitrate ? std::optional<qint64>(*t.bitrate) : std::nullopt;
+        }
+        return t.addedAt;
+    };
+    std::stable_sort(tracks.begin(), tracks.end(), [&](const TrackInfo& a, const TrackInfo& b) {
+        const auto ka = key(a);
+        const auto kb = key(b);
+        if (!ka || !kb) {
+            return ka.has_value() && !kb.has_value();
+        }
+        return filter.descending ? *ka > *kb : *ka < *kb;
+    });
 }
 
 /// 記憶體裡的音樂庫：8 張專輯（第 3 張是 WAV，篩選用），每張 2 首。
@@ -87,6 +118,7 @@ public:
                 out.append(t);
             }
         }
+        sortTracks(out, filter);
         const int limit = filter.limit < 0 ? static_cast<int>(out.size()) : filter.limit;
         return out.mid(filter.offset, limit);
     }

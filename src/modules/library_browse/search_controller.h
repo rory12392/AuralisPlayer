@@ -29,6 +29,7 @@ namespace auralis::mod::lib {
 ///   正在查的那一批查完也不顯示。
 /// - elapsedMs 是第一批的查詢耗時（搜尋框右側的「12 ms」）。
 /// - 篩選列的選項（整個音樂庫出現過的值）要先呼叫 loadOptions()，之後掃描完成時自動重讀。
+/// - 排序（sortBy，所有曲目頁的位元率、加入時間表頭）跟著查詢交給 LibraryQuery，換排序就重查。
 /// 執行緒：只在 UI 執行緒使用；結果與選項由工作執行緒以 queued 呼叫交回。
 // 由 QML 引擎取用的單例，型別註冊會繼承它，所以不能標 final
 class SearchController : public QObject {
@@ -46,6 +47,10 @@ class SearchController : public QObject {
     Q_PROPERTY(int sampleRate READ sampleRate WRITE setSampleRate NOTIFY criteriaChanged)
     /// 有任何一個篩選（不含搜尋字串）。
     Q_PROPERTY(bool filtersActive READ filtersActive NOTIFY criteriaChanged)
+    /// 排序（AC-10-5）："bitrate"、"addedAt"，空字串＝預設順序；用 sortBy() 改。
+    Q_PROPERTY(QString sort READ sort NOTIFY sortChanged)
+    /// 遞減排序（只對 bitrate、addedAt 有效）。
+    Q_PROPERTY(bool descending READ descending NOTIFY sortChanged)
     Q_PROPERTY(auralis::mod::lib::SearchResultsModel* results READ results CONSTANT)
     /// 目前已載入的結果筆數；complete 為 true 時就是符合的總數。
     Q_PROPERTY(int count READ count NOTIFY resultsChanged)
@@ -61,7 +66,6 @@ class SearchController : public QObject {
     /// 篩選選項讀取失敗時給使用者看的原因（篩選列顯示並可重試 loadOptions）；成功後清掉。
     Q_PROPERTY(QString optionsError READ optionsError NOTIFY optionsChanged)
     Q_PROPERTY(QStringList artistOptions READ artistOptions NOTIFY optionsChanged)
-    Q_PROPERTY(QStringList albumOptions READ albumOptions NOTIFY optionsChanged)
     /// 年份（int），由新到舊。
     Q_PROPERTY(QVariantList yearOptions READ yearOptions NOTIFY optionsChanged)
     Q_PROPERTY(QStringList formatOptions READ formatOptions NOTIFY optionsChanged)
@@ -90,6 +94,8 @@ public:
     void setFormat(const QString& format);
     void setSampleRate(int rate);
     bool filtersActive() const;
+    QString sort() const;
+    bool descending() const { return m_descending; }
 
     SearchResultsModel* results() { return &m_results; }
     int count() const { return m_results.rowCount(); }
@@ -114,6 +120,9 @@ public:
     Q_INVOKABLE void clearFilters();
     /// 在背景讀篩選列的選項；完成時 optionsChanged。
     Q_INVOKABLE void loadOptions();
+    /// 換排序並重查（所有曲目頁的表頭）："bitrate"、"addedAt"；
+    /// 其他值＝預設順序（descending 不算）。清除搜尋與篩選不清掉排序。
+    Q_INVOKABLE void sortBy(const QString& column, bool descending);
 
     /// 模組停止時：丟掉排隊中的查詢、等正在查的那一批結束。之後不再發出結果。
     void shutdown();
@@ -123,6 +132,7 @@ public:
 
 signals:
     void criteriaChanged();
+    void sortChanged();
     void resultsChanged();
     void busyChanged();
     void optionsChanged();
@@ -145,6 +155,8 @@ private:
     LibraryQuery& m_library;
     SearchResultsModel m_results;
     SearchCriteria m_criteria;
+    TrackSort m_sort = TrackSort::Default;
+    bool m_descending = false;
     QTimer m_debounce;
     QThreadPool m_pool;
     /// 最新一次查詢的編號；工作執行緒比對它來丟掉舊查詢。

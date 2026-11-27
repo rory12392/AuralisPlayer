@@ -11,7 +11,8 @@ namespace auralis::mod::lib {
 /// 搜尋與篩選的結果（S-07 的曲目清單），由 SearchController 分批填入。
 /// 角色：title、artist、albumArtist、album、composer、year、discNo、trackNo、durationMs、
 /// format（formatKey）、sampleRate、bits、coverKey、path、subsong、albumId；
-/// 顯示用的 durationText、qualityText、coverUrl。
+/// 顯示用的 durationText、qualityText、coverUrl；
+/// T-115：bitrate、addedAt 與顯示用的 bitrateText、addedText。
 /// 執行緒：只在 UI 執行緒使用。
 class SearchResultsModel : public QAbstractListModel {
     Q_OBJECT
@@ -41,6 +42,12 @@ public:
         DurationTextRole,
         QualityTextRole,
         CoverUrlRole,
+        // T-115：位元率（kbps）與加入時間（UTC Unix 毫秒），沒有值時 undefined；
+        // 顯示文字沒有值時空字串
+        BitrateRole,
+        AddedAtRole,
+        BitrateTextRole,
+        AddedTextRole,
     };
 
     using QAbstractListModel::QAbstractListModel;

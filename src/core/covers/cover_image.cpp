@@ -23,7 +23,13 @@ constexpr int kLevelShift = 4;
 } // namespace
 
 Result<QByteArray> readUserFile(const QString& path, qint64 maxBytes) {
-    // 使用者的圖檔一律唯讀、共用讀寫刪除：不擋別的程式，也不會改到它
+    return readUserFile(path, maxBytes, QStringLiteral("圖檔太大（%1 位元組）"),
+                        QStringLiteral("readUserFile"));
+}
+
+Result<QByteArray> readUserFile(const QString& path, qint64 maxBytes, const QString& tooLarge,
+                                const QString& call) {
+    // 使用者的檔案一律唯讀、共用讀寫刪除：不擋別的程式，也不會改到它
     const std::wstring longPath =
         toLongPath(QDir::toNativeSeparators(QFileInfo(path).absoluteFilePath()));
     HANDLE file = CreateFileW(longPath.c_str(), GENERIC_READ,
@@ -38,8 +44,7 @@ Result<QByteArray> readUserFile(const QString& path, qint64 maxBytes) {
         return hresultError(HRESULT_FROM_WIN32(GetLastError()), "GetFileSizeEx");
     }
     if (size.QuadPart > maxBytes) {
-        return Error{QStringLiteral("圖檔太大（%1 位元組）").arg(size.QuadPart), 0,
-                     QStringLiteral("readUserFile")};
+        return Error{tooLarge.arg(size.QuadPart), 0, call};
     }
     QByteArray bytes(static_cast<qsizetype>(size.QuadPart), Qt::Uninitialized);
     qsizetype done = 0;

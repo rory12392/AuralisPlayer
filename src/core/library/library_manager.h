@@ -2,6 +2,8 @@
 
 #include "library/library_writer.h"
 
+#include <auralis/job_gate.h>
+
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -27,9 +29,7 @@ class LibraryManager : public QObject {
     Q_OBJECT
     Q_PROPERTY(QStringList folders READ folders NOTIFY foldersChanged)
     Q_PROPERTY(bool scanning READ isScanning NOTIFY scanningChanged)
-    Q_PROPERTY(int scannedCount READ scannedCount NOTIFY progressChanged)
     Q_PROPERTY(int totalCount READ totalCount NOTIFY progressChanged)
-    Q_PROPERTY(QVariantMap lastReport READ lastReportMap NOTIFY lastReportChanged)
 
 public:
     enum class AddResult { Added, AlreadyAdded, Overlaps, NotFound };
@@ -66,6 +66,11 @@ public:
     Q_INVOKABLE void rescan(const QString& path = {});
     /// 取消進行中的掃描（已寫入的保留）與佇列中的掃描。
     Q_INVOKABLE void cancelScan();
+    /// 背景補值（資料庫升級 0002 前就在的曲目的位元率與加入時間，AC-10-5）：另一個 JobRunner
+    /// 工作（「補齊位元率與加入時間」，不在掃描佇列裡，和掃描同時做），沒有待補的曲目時很快結束。
+    /// 已在做時不重排。補完一次發 LibraryQuery::scanFinished。中斷後下次呼叫接著做。
+    /// 程式啟動時由資料夾監看的 start() 呼叫；解構時取消並關閉它的 JobGate 等它結束。
+    void startMetaBackfill();
 
 signals:
     void foldersChanged();
@@ -100,6 +105,8 @@ private:
     std::shared_ptr<JobState> m_state;
     int m_scanned = 0;
     int m_total = 0;
+    quint64 m_backfillJob = 0;
+    std::shared_ptr<JobGate> m_backfillGate = std::make_shared<JobGate>();
 };
 
 } // namespace auralis::core

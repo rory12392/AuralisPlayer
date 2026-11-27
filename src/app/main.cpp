@@ -7,6 +7,7 @@
 #include "plugins/plugin_manager.h"
 #include "self_check.h"
 #include "settings/data_dir.h"
+#include "settings/ui_scale.h"
 #include "shell/plugins_controller.h"
 #include "single_instance.h"
 #include "soak.h"
@@ -48,6 +49,14 @@ QSize parseSize(const QString& text) {
 int main(int argc, char* argv[]) {
     QElapsedTimer sinceStart;
     sinceStart.start();
+    // 介面縮放（AC-19-4）要在建立 QGuiApplication 之前決定。資料夾照同樣的規則先決定
+    // （開發版沒指定資料夾時這裡不讀設定，下面照舊拒絕啟動）
+    {
+        const auto earlyDataDir =
+            auralis::core::resolveDataDir(auralis::core::dataDirInputsBeforeApp());
+        auralis::core::applyUiScaleBeforeApp(
+            earlyDataDir ? earlyDataDir.value() + QStringLiteral("/settings.ini") : QString());
+    }
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("AuralisPlayer"));
     QGuiApplication::setApplicationVersion(QStringLiteral(AURALIS_VERSION));

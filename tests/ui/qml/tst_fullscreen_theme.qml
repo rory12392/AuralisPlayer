@@ -8,8 +8,8 @@ import Auralis.Ui
 // 進出全螢幕的同一個呼叫裡主題就換好（中間不會畫出一幀主題不對的畫面）。
 Item {
     id: root
-    width: 1600
-    height: 900
+    width: 1920
+    height: 1080
 
     AppShell {
         id: shell
@@ -52,6 +52,7 @@ Item {
         }
 
         function init() {
+            nowPlayingProbe.addFixture("fullscreen", "test/fullscreen", "FullscreenPageFixture.qml", 950)
             ThemeController.overrideMode("paper")
             verify(Navigator.open("settings"))
             shell.forceActiveFocus()
@@ -116,6 +117,80 @@ Item {
             verify(Navigator.leaveFullscreen())
             verify(Theme.dark)
             compare(ThemeController.mode, "void")
+        }
+
+        // T-121（AC-17-6、DESIGN §10 第 9 項）：強制淺色時一樣在同一個呼叫裡換好
+        function test_d_forced_light_switches_in_same_call() {
+            nowPlayingProbe.addFixture("fullscreen", "test/fullscreen", "FullscreenLightFixture.qml", 950)
+            ThemeController.overrideMode("void")
+            verify(Theme.dark)
+            verify(Navigator.enterFullscreen())
+            verify(!Theme.dark)
+            sameColor(Theme.bg, paperBg, "Theme.bg")
+            compare(ThemeController.mode, "void")
+
+            tryVerify(() => findChild(shell, "fixtureFullscreenPage") !== null)
+            sameColor(item("fixtureFullscreenPage").color, paperBg, "全螢幕頁底色")
+            const slider = item("fixtureFullscreenSlider")
+            sameColor(slider.background.children[0].color, paperLineStrong, "Slider 軌道")
+            sameColor(slider.background.children[1].color, paperAmber, "Slider 已播段")
+            sameColor(item("fixtureFullscreenTag").dotColor, paperAmber, "StatusTag 指示點")
+            sameColor(Theme.fsInk, Theme.ink, "fsInk 跟著有效主題")
+            sameColor(Theme.fsAmber, paperAmber, "fsAmber 跟著有效主題")
+            waitForRendering(shell)
+            grabImage(shell).save(testTmpDir + "/t-121-fullscreen-light.png")
+
+            verify(Navigator.leaveFullscreen())
+            verify(Theme.dark)
+            sameColor(Theme.bg, voidBg, "Theme.bg")
+            compare(ThemeController.mode, "void")
+        }
+
+        function test_e_follow_uses_main_theme() {
+            nowPlayingProbe.addFixture("fullscreen", "test/fullscreen", "FullscreenFollowFixture.qml", 950)
+            verify(Navigator.enterFullscreen())
+            verify(!Theme.dark) // 主程式是 Paper
+            tryVerify(() => findChild(shell, "fixtureFullscreenPage") !== null)
+            sameColor(item("fixtureFullscreenPage").color, paperBg, "全螢幕頁底色")
+            // 全螢幕期間主程式換成 Void：跟著變
+            ThemeController.overrideMode("void")
+            verify(Theme.dark)
+            sameColor(item("fixtureFullscreenPage").color, voidBg, "全螢幕頁底色")
+            verify(Navigator.leaveFullscreen())
+            verify(Theme.dark)
+        }
+
+        // 全螢幕中切換深淺色：有 Behavior on color 的共用元件不淡入，同一格就是新顏色，
+        // 不會有一格深字配深底（實心按鈕的底是 ink、字是 bg；勾選的圖示按鈕底是 surfaceRaised、圖示是 ink）
+        function test_f_switch_inside_fullscreen_is_instant() {
+            verify(Navigator.enterFullscreen())
+            verify(Theme.dark)
+            tryVerify(() => findChild(shell, "fixtureFullscreenPage") !== null)
+            const page = item("fixtureFullscreenPage")
+            const solid = item("fixtureFullscreenSolid")
+            const toggle = item("fixtureFullscreenToggle")
+            waitForRendering(shell)
+
+            page.fullscreenTheme = "light"
+            verify(!Theme.dark)
+            sameColor(solid.background.color, Theme.ink, "實心按鈕底（淺色）")
+            sameColor(toggle.background.color, Theme.surfaceRaised, "勾選的圖示按鈕底（淺色）")
+            waitForRendering(shell)
+            let image = grabImage(shell)
+            image.save(testTmpDir + "/t-121-switch-to-light.png")
+            sameColor(image.pixel(toggle.mapToItem(shell, 2, 2).x, toggle.mapToItem(shell, 2, 2).y),
+                      Theme.surfaceRaised, "切換後第一格：圖示按鈕底")
+
+            page.fullscreenTheme = "dark"
+            verify(Theme.dark)
+            sameColor(solid.background.color, Theme.ink, "實心按鈕底（深色）")
+            sameColor(toggle.background.color, Theme.surfaceRaised, "勾選的圖示按鈕底（深色）")
+            waitForRendering(shell)
+            image = grabImage(shell)
+            image.save(testTmpDir + "/t-121-switch-to-dark.png")
+            sameColor(image.pixel(toggle.mapToItem(shell, 2, 2).x, toggle.mapToItem(shell, 2, 2).y),
+                      Theme.surfaceRaised, "切換後第一格：圖示按鈕底")
+            verify(!ThemeController.instantThemeSwitch)
         }
     }
 }

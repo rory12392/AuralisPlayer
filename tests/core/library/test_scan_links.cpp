@@ -145,7 +145,7 @@ TEST_CASE("AC-08-5：帶著非連結重新解析點的檔案（像雲端佔位�
     CHECK(listing.skippedLinks.isEmpty());
 }
 
-TEST_CASE("AC-08-5：資料夾裡的 junction 跳過並記進掃描報告，掃描不中斷") {
+TEST_CASE("AC-08-5：資料夾裡的 junction 跳過並另外記進掃描報告，不算讀不到，掃描不中斷") {
     Fixture fx(QStringLiteral("links-junction"));
     const QString junction = fx.root + QStringLiteral("\\連到外面");
     makeJunction(junction, fx.outside);
@@ -158,11 +158,23 @@ TEST_CASE("AC-08-5：資料夾裡的 junction 跳過並記進掃描報告，掃�
     CHECK_FALSE(report.cancelled);
     CHECK(report.added == 1);
     CHECK(fx.trackCount() == 1);
-    const ScanFailure* skipped = failureFor(report.failures, junction);
+    const ScanFailure* skipped = failureFor(report.skippedLinks, junction);
     REQUIRE(skipped != nullptr);
     CHECK(skipped->error == kLinkReason);
-    CHECK(report.failed == 1);
+    // 跳過的連結不是讀不到的檔案：不算進 failed、不和讀不到的檔案並列
+    CHECK(report.failed == 0);
+    CHECK(report.failures.isEmpty());
     CHECK_FALSE(anyContains(spy.read, QStringLiteral("target.flac")));
+
+    // 存進資料庫的報告也分開；之後每次（含啟動時的增量）掃描都不會把它列成讀不到
+    const ScanReport saved = LibraryWriter(*fx.db).lastReport();
+    CHECK(saved.failed == 0);
+    CHECK(saved.failures.isEmpty());
+    REQUIRE(saved.skippedLinks.size() == 1);
+    CHECK(saved.skippedLinks.front().path == junction);
+    const ScanReport again = scanLibrary(*fx.db, fx.roots, {});
+    CHECK(again.failed == 0);
+    CHECK(again.failures.isEmpty());
 }
 
 TEST_CASE("AC-08-5：檔案與資料夾的符號連結跳過並記進掃描報告，目標不被讀取") {
@@ -183,10 +195,12 @@ TEST_CASE("AC-08-5：檔案與資料夾的符號連結跳過並記進掃描報�
     CHECK_FALSE(report.cancelled);
     CHECK(report.added == 1);
     CHECK(fx.trackCount() == 1);
-    CHECK(report.failed == 2);
+    CHECK(report.failed == 0);
+    CHECK(report.failures.isEmpty());
+    CHECK(report.skippedLinks.size() == 2);
     for (const QString& link : {fileLink, dirLink}) {
         INFO(link.toStdString());
-        const ScanFailure* skipped = failureFor(report.failures, link);
+        const ScanFailure* skipped = failureFor(report.skippedLinks, link);
         REQUIRE(skipped != nullptr);
         CHECK(skipped->error == kLinkReason);
     }
@@ -206,7 +220,7 @@ TEST_CASE("AC-08-5：以前收錄過的檔案換成符號連結後，從音樂�
     const ScanReport report = scanLibrary(*fx.db, fx.roots, {});
     CHECK(report.removed == 1);
     CHECK(fx.trackCount() == 1);
-    REQUIRE(failureFor(report.failures, path) != nullptr);
+    REQUIRE(failureFor(report.skippedLinks, path) != nullptr);
 }
 
 TEST_CASE("AC-08-5：資料夾封面圖檔是符號連結時不拿來當封面") {

@@ -37,6 +37,8 @@ struct CueSheet {
 /// 解析 .cue 文字（已解碼）。區段規則：每軌從自己的 INDEX 01 開始，到同一個音訊檔中下一軌的
 /// INDEX 01 結束，所以下一軌的前置空白（INDEX 00 到 INDEX 01）算在上一軌的結尾，相鄰兩軌
 /// 接起來剛好是連續的音訊（AC-07-2）；第一軌 INDEX 01 之前的部分（隱藏軌）不播。
+/// TRACK 之後、INDEX 01 之前出現 FILE 時（一軌一檔、間隔接在上一個檔案結尾的 .cue），
+/// 這一軌屬於新的 FILE。
 /// 沒有任何 AUDIO 軌、時間格式錯誤、軌缺 INDEX 01、軌號重複時回傳 Error。
 /// 執行緒：任何執行緒。
 Result<CueSheet> parseCueSheet(const QString& text);

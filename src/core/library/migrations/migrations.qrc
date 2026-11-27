@@ -2,5 +2,6 @@
 <RCC version="1.0">
     <qresource prefix="/migrations">
         <file>0001_initial.sql</file>
+        <file>0002_track_bitrate_added.sql</file>
     </qresource>
 </RCC>

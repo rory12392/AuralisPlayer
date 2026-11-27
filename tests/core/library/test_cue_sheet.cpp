@@ -77,6 +77,36 @@ TEST_CASE("AC-07-2：時間換算、CRLF、沒有引號的值、多個 FILE、�
     CHECK(cue.tracks[2].start == 100 * 60 * 75 + 1);
 }
 
+TEST_CASE("AC-07-2：一軌一檔、間隔接在上一個 FILE 結尾的 .cue：每軌對應自己的 FILE、播到檔尾") {
+    // 一軌一檔的抓軌方式：下一軌的 TRACK 與 INDEX 00 寫在上一個 FILE 裡，INDEX 01 才在新的 FILE
+    const QString text = QStringLiteral("FILE \"01.wav\" WAVE\n"
+                                        "  TRACK 01 AUDIO\n"
+                                        "    TITLE \"一\"\n"
+                                        "    INDEX 01 00:00:00\n"
+                                        "  TRACK 02 AUDIO\n"
+                                        "    TITLE \"二\"\n"
+                                        "    INDEX 00 00:03:10\n"
+                                        "FILE \"02.wav\" WAVE\n"
+                                        "    INDEX 01 00:00:00\n"
+                                        "  TRACK 03 AUDIO\n"
+                                        "    INDEX 00 00:02:00\n"
+                                        "FILE \"03.wav\" WAVE\n"
+                                        "    INDEX 01 00:00:00\n");
+    const auto sheet = parseCueSheet(text);
+    REQUIRE(sheet.hasValue());
+    const auto& tracks = sheet.value().tracks;
+    REQUIRE(sheet.value().files.size() == 3);
+    REQUIRE(tracks.size() == 3);
+    for (size_t i = 0; i < tracks.size(); ++i) {
+        CAPTURE(i);
+        CHECK(tracks[i].number == static_cast<int>(i) + 1);
+        CHECK(tracks[i].fileIndex == static_cast<int>(i));
+        CHECK(tracks[i].start == 0);
+        CHECK(tracks[i].end == -1); // 上一個檔案結尾的間隔算在上一軌（相鄰兩軌接起來是連續的）
+    }
+    CHECK(tracks[1].title == QStringLiteral("二"));
+}
+
 TEST_CASE("解析失敗：沒有音訊軌、時間格式錯誤、缺 INDEX 01、TRACK 前沒有 FILE、軌號重複") {
     const char* broken[] = {
         "TITLE \"x\"\n",

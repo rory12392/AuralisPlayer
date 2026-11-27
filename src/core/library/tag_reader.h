@@ -25,6 +25,8 @@ struct TagData {
     std::optional<double> rgTrackGain, rgTrackPeak, rgAlbumGain, rgAlbumPeak;
     bool hasEmbeddedLyrics = false;
     bool hasEmbeddedCover = false; ///< 有內嵌圖（TagLib 的 PICTURE）
+    /// 整個檔案的位元率（kbps，規則見 audioFileBitrateKbps）；未知時 nullopt。
+    std::optional<int> bitrate;
 };
 
 /// 音樂庫收錄的副檔名（小寫、不含點）：核心 FFmpeg 音源的格式加 DSF、DFF。

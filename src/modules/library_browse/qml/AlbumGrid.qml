@@ -54,24 +54,24 @@ GridView {
     // 一格滾輪捲「系統行數」列格子
     WheelScroll { flickable: grid; lineHeight: grid.cellHeight }
 
-    readonly property alias selection: selection
-    readonly property alias menu: menu
+    readonly property alias selection: trackSelection
+    readonly property alias menu: trackMenu
     /// 狀態列左側的選取說明（頁面的 statusTextLeft）
-    readonly property string selectionText: ListActions.statusText(selection.trackCount)
+    readonly property string selectionText: ListActions.statusText(trackSelection.trackCount)
 
     TrackSelection {
-        id: selection
+        id: trackSelection
         model: grid.model
     }
 
     TrackMenu {
-        id: menu
+        id: trackMenu
     }
 
     readonly property var actions: ({
         list: grid,
-        selection: selection,
-        menu: menu,
+        selection: trackSelection,
+        menu: trackMenu,
         player: Player,
         contain: GridView.Contain,
         rowStep: grid.columns,
@@ -100,19 +100,19 @@ GridView {
         readonly property bool playing: !!grid.source && grid.source.currentAlbumId > 0
                                         && Number(albumId) === Number(grid.source.currentAlbumId)
 
-        readonly property bool selected: selection.revision >= 0 && selection.isSelected(cell.index)
+        readonly property bool selected: trackSelection.revision >= 0 && trackSelection.isSelected(cell.index)
 
         width: grid.cellWidth
         height: grid.cellHeight
         Accessible.role: Accessible.ListItem
         Accessible.name: [title, artist, formatText].filter(part => part.length > 0).join(" ")
 
-        count: cell.selected ? selection.trackCount : selection.rowTrackCount(cell.index)
-        query: cell.dragging ? selection.query() : ""
-        tracks: cell.dragging && !selection.queryOnly ? selection.tracks() : []
+        count: cell.selected ? trackSelection.trackCount : trackSelection.rowTrackCount(cell.index)
+        query: cell.dragging ? trackSelection.query() : ""
+        tracks: cell.dragging && !trackSelection.queryOnly ? trackSelection.tracks() : []
         onDraggingChanged: {
             if (cell.dragging)
-                selection.ensureSelected(cell.index)
+                trackSelection.ensureSelected(cell.index)
         }
 
         HoverHandler {

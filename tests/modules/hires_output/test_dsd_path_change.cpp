@@ -6,6 +6,7 @@
 #include "fake_playback_service.h"
 #include "native_dsd_sink.h"
 #include "pcm_convert_sink.h"
+#include "test_qt_app.h"
 
 #include <auralis/audio_output.h>
 #include <auralis/module_settings.h>
@@ -28,12 +29,7 @@ using auralis::test::FakePlaybackService;
 namespace {
 
 void ensureApp() {
-    static int argc = 1;
-    static char name[] = "auralis_out_tests";
-    static char* argv[] = {name, nullptr};
-    if (QCoreApplication::instance() == nullptr) {
-        new QCoreApplication(argc, argv);
-    }
+    auralis::test::ensureQtApp("auralis_out_tests");
 }
 
 class MemorySettings final : public auralis::ModuleSettings {

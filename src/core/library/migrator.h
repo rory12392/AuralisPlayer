@@ -22,7 +22,8 @@ std::vector<Migration> builtinMigrations();
 /// 把 dbPath 升到 migrations 的最新版本，回傳升級後的版本。
 /// 已有資料的資料庫升級前先備份成 <dbPath>.bak-v<舊版本>（保留最近 3 份）；
 /// 所有腳本在同一個交易裡執行，失敗時還原備份並回傳 Error，不會留下半套 schema。
-/// 資料庫版本比程式新時回傳 Error（不降級）。執行緒：任何執行緒，但同一個檔案一次一個。
+/// 資料庫版本比程式新時回傳 Error（不降級）。執行緒：任何執行緒；同一個檔案同時有好幾個呼叫
+/// （例：同時啟動的程式）時，後來的等先開的升級完（最多 60 秒），看到已是最新就直接回傳。
 Result<int> migrateDatabase(const QString& dbPath,
                             const std::vector<Migration>& migrations = builtinMigrations());
 

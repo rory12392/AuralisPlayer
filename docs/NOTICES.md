@@ -24,18 +24,18 @@
 
 ## 函式庫（隨程式發佈）
 
-版本與授權從 vcpkg 的 `share/<port>/copyright`、`vcpkg.spdx.json` 與 Qt 安裝裡的 `sbom/*.spdx.json` 讀（2026-11-17，T-98）。
+版本與授權從 vcpkg 的 `share/<port>/copyright`、`vcpkg.spdx.json` 與 Qt 安裝裡的 `sbom/*.spdx.json` 讀（2026-11-17，T-98；2026-11-20 T-106 升級 Qt 6.12.1、vcpkg baseline `f4c425b` 後重讀：Qt 內建的第三方程式版本有變、新列出 XSVG（HPND），授權種類沒有變）。
 
 | 元件 | 版本 | 授權（本專案採用的） | 原始碼取得 | zip 裡的授權全文 |
 |---|---|---|---|---|
-| Qt（Core、Gui、OpenGL、Network、Svg、Qml、Quick、Quick Controls 2、Dialogs、Effects、Layouts、Shapes、Labs FolderListModel 等） | 6.11.3 | LGPLv3（沒有只限 GPL 的模組） | qtbase、qtdeclarative、qtsvg 的 `<模組>-everywhere-src-6.11.3.tar.xz`（download.qt.io 的 submodules 資料夾；commit 取自 Qt 安裝的 `sbom/*.spdx.json`；未修改） | `THIRD-PARTY-NOTICES.txt` 第 4 節（LGPLv3）、`licenses/GPL-3.0.txt` |
+| Qt（Core、Gui、OpenGL、Network、Svg、Qml、Quick、Quick Controls 2、Dialogs、Effects、Layouts、Shapes、Labs FolderListModel 等） | 6.12.1 | LGPLv3（沒有只限 GPL 的模組） | qtbase、qtdeclarative、qtsvg 的 `<模組>-everywhere-src-6.12.1.tar.xz`（download.qt.io 的 submodules 資料夾；commit 取自 Qt 安裝的 `sbom/*.spdx.json`；未修改） | `THIRD-PARTY-NOTICES.txt` 第 4 節（LGPLv3）、`licenses/GPL-3.0.txt` |
 | Qt 內建的第三方程式（libjpeg-turbo、libpng、zlib、FreeType、HarfBuzz、PCRE2 等） | 見 notices | IJG＋BSD-3（qjpeg，要附「based in part on the work of the Independent JPEG Group」）、各自的寬鬆授權 | 隨 Qt 原始碼 | `THIRD-PARTY-NOTICES.txt` 3.1 節列出 |
-| FFmpeg（avcodec、avformat、avutil、swresample） | 9.0.2 | LGPL 2.1 以上（沒有 gpl、nonfree） | vcpkg 下載的 GitHub tag `n9.0.2` 封存＋vcpkg baseline `e54ef0f` 的 port 補丁 | `licenses/FFmpeg.txt` |
-| TagLib（含 UTF8-CPP 4.2.1） | 2.3.1 | LGPL 2.1（另可選 MPL 1.1）；UTF8-CPP 是 BSL 1.0 | GitHub taglib＋vcpkg port | `licenses/TagLib.txt`、`TagLib-MPL-1.1.txt`、`utfcpp.txt` |
+| FFmpeg（avcodec、avformat、avutil、swresample） | 9.0.2 | LGPL 2.1 以上（沒有 gpl、nonfree） | vcpkg 下載的 GitHub tag `n9.0.2` 封存＋vcpkg baseline `f4c425b` 的 port 補丁 | `licenses/FFmpeg.txt` |
+| TagLib（含 UTF8-CPP 5.0.0） | 2.3.1 | LGPL 2.1（另可選 MPL 1.1）；UTF8-CPP 是 BSL 1.0 | GitHub taglib＋vcpkg port | `licenses/TagLib.txt`、`TagLib-MPL-1.1.txt`、`utfcpp.txt` |
 | uchardet | 0.0.8 | LGPL 2.1（三選一：MPL 1.1／GPL 2／LGPL 2.1） | freedesktop.org＋vcpkg port | `licenses/uchardet.txt` |
 | SQLite | 3.54.1 | 公有領域 | sqlite.org | `licenses/SQLite.txt` |
 | libebur128 | 1.2.6 | MIT | GitHub＋vcpkg port | `licenses/libebur128.txt` |
-| zlib（`z.dll`） | 1.3.2 | zlib | zlib.net | `licenses/zlib.txt` |
+| zlib（`libz.dll`；1.3.2 時叫 `z.dll`） | 1.4 | zlib | zlib.net | `licenses/zlib.txt` |
 | `d3dcompiler_47.dll`、`dxcompiler.dll`、`dxil.dll`、`vc_redist.x64.exe` | — | **不隨發佈包散布**（T-103）：前三個程式不載入，`windeployqt` 加 `--no-system-d3d-compiler --no-system-dxc-compiler`；VC++ 執行階段由使用者自己安裝（README 寫明 Microsoft 的下載頁），部署加 `NO_COMPILER_RUNTIME` | 不適用 | `THIRD-PARTY-NOTICES.txt` 3.8 節寫明不包含 |
 | ASIO SDK（只編進 ASIO 外掛 `AuralisAsio.dll`，主程式包內建、外掛包也有；SDK 原始檔不進 zip） | 2.3.4（`ASIO-SDK_2.3.4_2025-10-15.zip`，vcpkg port `asiosdk` 2.3.4#2） | SDK 的 `LICENSE.txt` 二選一，採 b) GPLv3；`host/` 檔案另有 BSD 式授權；標誌是 Steinberg 的商標圖檔，不屬於 GPLv3 | Steinberg 封存＋vcpkg port 補丁 `fix-new-delete-mismatch.patch` | 兩個包的 `licenses/ASIO-SDK.txt`、`licenses/ASIO-SDK-host.txt`、`LICENSE`；標誌說明 `plugins\AuralisAsio\ASIO-LOGO-README.txt` |
 

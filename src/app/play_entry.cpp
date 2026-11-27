@@ -87,6 +87,8 @@ void openCommandLinePaths(core::CoreServices& services, ui::OpenFilesController&
             &openFiles, &ui::OpenFilesController::opened, &openFiles,
             [connection, &openFiles, &playback = services.playback, ready](int added) {
                 QObject::disconnect(*connection);
+                // 開始播放在背景開檔；截圖模式要印出開始之後的狀態，所以等它做完
+                playback.waitForStart();
                 const auto current = playback.currentEntry();
                 const QString line = QStringLiteral("開啟：加入 %1 首，%2，目前曲目：%3")
                                          .arg(added)

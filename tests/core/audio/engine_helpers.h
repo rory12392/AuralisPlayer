@@ -11,9 +11,20 @@
 
 #include <chrono>
 #include <cstring>
+#include <map>
 #include <thread>
 
 namespace auralis::test {
+
+/// CD 格式：44.1 kHz、16 位元、雙聲道。
+inline AudioFormat cd() {
+    AudioFormat format;
+    format.rate = 44100;
+    format.bits = 16;
+    format.container = 16;
+    format.channels = 2;
+    return format;
+}
 
 /// 從一段記憶體交出樣本的音源（不經 FFmpeg），格式由測試指定。
 class MemorySource final : public IAudioSource {
@@ -40,6 +51,18 @@ private:
     AudioFormat m_format;
     QByteArray m_data;
     qint64 m_pos = 0;
+};
+
+/// 副檔名 .mem 的音源，格式由測試指定（tracks 的鍵是路徑）。
+class MemoryFactory final : public ISourceFactory {
+public:
+    QString name() const override { return QStringLiteral("記憶體"); }
+    QStringList extensions() const override { return {QStringLiteral("mem")}; }
+    Result<std::unique_ptr<IAudioSource>> open(const QString& path) override {
+        const auto& [format, data] = tracks.at(path);
+        return std::unique_ptr<IAudioSource>(std::make_unique<MemorySource>(format, data));
+    }
+    std::map<QString, std::pair<AudioFormat, QByteArray>> tracks;
 };
 
 /// 等引擎把曲目送完（最多 timeoutMs 毫秒）再停；回傳有沒有在時限內送完。

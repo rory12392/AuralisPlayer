@@ -4,6 +4,7 @@
 #include "playlist_store.h"
 #include "playlist_tracks.h"
 #include "playlists_controller.h"
+#include "test_qt_app.h"
 
 #include "fake_playback_service.h"
 
@@ -85,12 +86,7 @@ public:
 };
 
 void ensureApp() {
-    if (QCoreApplication::instance() == nullptr) {
-        static int argc = 1;
-        static char name[] = "auralis_pl_tests";
-        static char* argv[] = {name, nullptr};
-        static QCoreApplication app(argc, argv);
-    }
+    auralis::test::ensureQtApp("auralis_pl_tests");
 }
 
 TrackRef ref(const QString& name) {

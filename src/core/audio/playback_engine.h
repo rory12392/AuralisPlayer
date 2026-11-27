@@ -15,6 +15,7 @@
 #include <atomic>
 #include <chrono>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -28,7 +29,8 @@ namespace auralis::core {
 /// 位元完美：沒有處理器作用時整數樣本原封不動直通到後端。
 /// 無縫（US-05）：目前曲目剩約 5 秒時向 NextTrackProvider 要下一首；格式相同就在同一個裝置上
 /// 緊接著寫進緩衝（中間沒有任何靜音），不同時排空緩衝、送短靜音、重開裝置再接著播。
-/// 執行緒：公開方法都在同一條非即時執行緒呼叫（PlaybackService 所在的執行緒）；
+/// 執行緒：公開方法在非即時執行緒呼叫，同一時間只有一條（PlaybackService 的 UI 執行緒，
+/// 或它開始播放時的背景執行緒，兩者交接時有同步）；setVolume() 例外。
 /// render() 由後端的音訊執行緒呼叫。
 class PlaybackEngine final : private IRenderSource {
 public:
@@ -88,7 +90,10 @@ public:
     /// 就有資料。backend 在 stop() 之前都要有效。失敗時回傳 Error，引擎回到停止狀態。
     Result<Status> play(std::unique_ptr<IAudioSource> source, IOutputBackend& backend);
     /// 同上，可以指定區段與識別碼（CUE 曲目從區段起點播到終點）。
-    Result<Status> play(EngineTrack track, IOutputBackend& backend);
+    /// cancelled 回傳 true 時（開裝置之後、預填的每個區塊之間、啟動後端之前檢查）放棄：
+    /// 回到停止狀態、回傳 Error，不啟動後端（開始播放的要求已經被更新的操作取代）。
+    Result<Status> play(EngineTrack track, IOutputBackend& backend,
+                        const std::function<bool()>& cancelled = {});
     /// 停止後端與解碼執行緒並關閉裝置。沒有在播時什麼都不做。
     void stop();
     /// 跳到正在聽的曲目的 frame（音源樣本框，從區段起點算），不重開裝置：解碼執行緒請音訊執行緒
@@ -150,6 +155,9 @@ private:
 
     /// 解碼一個區塊寫進緩衝；到結尾或失敗時回傳 false。呼叫前要確定緩衝有一個區塊的空間。
     bool produceChunk();
+    /// play() 啟動後端前把緩衝填滿；cancelled 成立就停在區塊之間。回傳 false 表示已解到結尾或失敗
+    /// （已標記解碼結束）。
+    bool prefill(const std::function<bool()>& cancelled);
     /// 目前曲目解到結尾時呼叫：有下一首時換過去（格式不同時標記要重開裝置）並回傳 true。
     bool advanceSource();
     /// 剩約 5 秒時（或解到結尾時）向提供者要下一首，每首只問一次。

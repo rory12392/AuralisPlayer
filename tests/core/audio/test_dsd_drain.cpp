@@ -23,6 +23,7 @@ using auralis::core::EngineTrack;
 using auralis::core::NextTrackProvider;
 using auralis::core::PlaybackEngine;
 using auralis::core::ProcessorChainImpl;
+using auralis::test::cd;
 using auralis::test::fastCapture;
 using auralis::test::MemorySource;
 
@@ -72,15 +73,6 @@ AudioFormat dsdFormat(quint32 dsdRate) {
     format.dsdRate = dsdRate;
     format.bits = 1;
     format.container = 32;
-    format.channels = 2;
-    return format;
-}
-
-AudioFormat cd() {
-    AudioFormat format;
-    format.rate = 44100;
-    format.bits = 16;
-    format.container = 16;
     format.channels = 2;
     return format;
 }

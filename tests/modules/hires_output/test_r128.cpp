@@ -5,6 +5,7 @@
 #include "r128_controller.h"
 #include "replay_gain.h"
 #include "replay_gain_processor.h"
+#include "test_qt_app.h"
 
 #include "library/migrator.h"
 #include "library/module_database_impl.h"
@@ -39,12 +40,7 @@ using namespace auralis::test;
 namespace {
 
 void ensureApp() {
-    static int argc = 1;
-    static char name[] = "auralis_out_tests";
-    static char* argv[] = {name, nullptr};
-    if (QCoreApplication::instance() == nullptr) {
-        new QCoreApplication(argc, argv);
-    }
+    auralis::test::ensureQtApp("auralis_out_tests");
 }
 
 constexpr quint32 kRate = 48000;

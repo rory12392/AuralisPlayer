@@ -1,7 +1,7 @@
 {
   "name": "auralis-player",
-  "version": "0.1.0",
-  "builtin-baseline": "e54ef0fcc9a82033a61e51002552a910a5d57282",
+  "version": "1.1.0",
+  "builtin-baseline": "f4c425bd7750eea5f9b59d7df2b818d3298a5e58",
   "dependencies": [
     "catch2",
     { "name": "ffmpeg", "default-features": false, "features": ["avcodec", "avformat", "swresample"] },

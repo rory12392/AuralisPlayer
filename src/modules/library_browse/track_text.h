@@ -13,4 +13,11 @@ QString durationText(qint64 ms);
 /// DSD 寫倍率（「DSD64」，同 formatKey）；取樣率不知道時空字串。任何執行緒。
 QString qualityText(const TrackInfo& track);
 
+/// 清單列的「位元率」：千分位加單位（例 1,411 kbps，同正在播放面板）；
+/// 不知道或還在補值時空字串。任何執行緒。
+QString bitrateText(std::optional<int> kbps);
+
+/// 清單列的「加入時間」：本地時區的日期「2026-11-26」；不知道或還在補值時空字串。任何執行緒。
+QString addedText(std::optional<qint64> utcMs);
+
 } // namespace auralis::mod::lib

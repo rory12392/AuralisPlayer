@@ -108,7 +108,7 @@ BackdropLoader::BackdropLoader(JobRunner& jobs, const LibraryQuery& library, Cov
                 }
                 qCWarning(lcBackdrop) << "計算封面主色失敗" << error;
                 m_job = 0;
-                setColor(backdropColor(std::nullopt));
+                setColor(std::nullopt);
             });
 }
 
@@ -166,7 +166,7 @@ void BackdropLoader::clear() {
         m_job = 0;
     }
     ++m_generation;
-    setColor(backdropColor(std::nullopt));
+    setColor(std::nullopt);
 }
 
 void BackdropLoader::shutdown(int timeoutMs) noexcept {
@@ -189,12 +189,16 @@ void BackdropLoader::deliver(quint64 generation, std::optional<quint32> rgb) {
     }
     m_job = 0;
     // 壓暗在 UI 執行緒做（AC-17-2；只是幾個浮點運算）
-    setColor(backdropColor(rgb));
+    setColor(rgb);
 }
 
-void BackdropLoader::setColor(const QString& color) {
-    if (color != m_color) {
+void BackdropLoader::setColor(std::optional<quint32> rgb) {
+    const QString color = backdropColor(rgb);
+    // 壓暗後同色的兩張封面，淺色版可能不同，所以原值變了也通知
+    const QString cover = rgb ? toHex(*rgb) : QString();
+    if (color != m_color || cover != m_coverColor) {
         m_color = color;
+        m_coverColor = cover;
         emit changed();
     }
 }

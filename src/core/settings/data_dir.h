@@ -3,6 +3,7 @@
 #include <auralis/result.h>
 
 #include <QString>
+#include <QStringList>
 
 namespace auralis::core {
 
@@ -28,5 +29,13 @@ Result<QString> resolveDataDir(const DataDirInputs& inputs);
 
 /// 從目前的程式環境收集輸入。
 DataDirInputs currentDataDirInputs(const QString& commandLine);
+
+/// 命令列參數（不含程式本身）裡 --data-dir 的值：「--data-dir <資料夾>」或「--data-dir=<資料夾>」；
+/// 沒有時空字串。
+QString dataDirArgument(const QStringList& arguments);
+
+/// 建立 QGuiApplication 之前（讀介面縮放時）收集輸入：命令列從 Windows API 取（main 的 argv
+/// 是 ANSI 字碼頁，中文路徑會壞），exe 資料夾也一樣。規則和之後的 currentDataDirInputs 相同。
+DataDirInputs dataDirInputsBeforeApp();
 
 } // namespace auralis::core

@@ -7,7 +7,7 @@
 - 發佈包用到的 vcpkg port（ffmpeg、sqlite3、taglib、utfcpp、uchardet、libebur128、zlib；ASIO=ON 加 asiosdk）
   每個都在 vcpkg 的 downloads 找到 SHA-512 相符的原始碼封存，port 目錄和 baseline 的樹一致；
 - 只在測試用的 catch2 不在清單；
-- Qt 的 qtbase、qtdeclarative、qtsvg 有 6.11.3 的 commit 與原始碼封存網址；
+- Qt 的 qtbase、qtdeclarative、qtsvg 有 6.12.1 的 commit 與原始碼封存網址；
 - 乾跑不建立輸出資料夾、不連網路；
 - 主程式包（main）內建 ASIO 外掛：ASIO=ON 時它的對應原始碼有 asiosdk、OFF 時沒有（T-105）；
   ASIO=ON 時外掛包（plugin-asio）是 asiosdk＋qtbase（T-103）。
@@ -78,8 +78,8 @@ def main() -> int:
         if module is None:
             problems.append(f"清單沒有 Qt 模組 {name}")
         elif not module.get("commit") or not str(module.get("url", "")).endswith(
-                f"{name}-everywhere-src-6.11.3.tar.xz"):
-            problems.append(f"Qt 模組 {name} 沒有 commit 或網址不是 6.11.3 的原始碼封存")
+                f"{name}-everywhere-src-6.12.1.tar.xz"):
+            problems.append(f"Qt 模組 {name} 沒有 commit 或網址不是 6.12.1 的原始碼封存")
     # T-105：主程式包內建 ASIO 外掛，ASIO=ON 時主程式包的對應原始碼也有 asiosdk；
     # 外掛包的對應原始碼是 asiosdk 與 qtbase（T-103）
     packages = plan.get("packages", {})

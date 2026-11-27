@@ -6,7 +6,7 @@
 // 交給表頭與列之前要拿掉（columnsOf）。
 // 寬度不夠時依 priority 藏欄（核心預設：曲名 0、藝人 1、長度 2、取樣率 3、專輯 4、格式 5、其他 10）；
 // 藝人與專輯的 minWidth 讓藏欄的時機接近以前自己寫的 < 760／< 520 過濾（介面規範 §4）。
-// 位元率、加入時間：音樂庫（LibraryQuery 的 TrackInfo）沒有這兩項資料，等核心提供後再加進目錄。
+// 位元率、加入時間（T-115）：表頭可以排序的只有這兩欄，而且只在頁面接了排序時（withSorting）。
 
 function numberText(value) {
     return value > 0 ? String(value) : ""
@@ -27,6 +27,11 @@ function catalog() {
           value: record => record ? numberText(record.year) : "" },
         { id: "trackNo", title: qsTr("曲序"), width: 48, align: "right", mono: true, sortable: false,
           optional: true, value: record => record ? numberText(record.trackNo) : "" },
+        // T-115（AC-10-5）：值是模型的顯示文字，補值中或未知時空白；比格式先藏、比其他可加的欄後藏
+        { id: "bitrate", title: qsTr("位元率"), width: 96, align: "right", mono: true, sortable: false,
+          optional: true, priority: 6, role: "bitrateText" },
+        { id: "addedAt", title: qsTr("加入時間"), width: 96, mono: true, sortable: false, optional: true,
+          priority: 7, role: "addedText" },
         { id: "path", title: qsTr("路徑"), weight: 3, minWidth: 96, mono: true, sortable: false, optional: true }
     ]
 }
@@ -39,6 +44,14 @@ function isLocked(id) {
 // 保存的清單 → 交給 ListHeader／TrackRow 的欄位（拿掉 cover）
 function columnsOf(layout) {
     return layout.filter(column => column.id !== "cover")
+}
+
+// 頁面接了排序時（所有曲目頁），位元率與加入時間的表頭變成按鈕；其他欄照舊不能排序
+function withSorting(columns, enabled) {
+    if (!enabled)
+        return columns
+    return columns.map(column => column.id === "bitrate" || column.id === "addedAt"
+                       ? Object.assign({}, column, { sortable: true }) : column)
 }
 
 function hasCover(layout) {

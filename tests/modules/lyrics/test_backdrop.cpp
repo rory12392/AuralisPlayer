@@ -305,3 +305,30 @@ TEST_CASE("AC-17-2：Lyrics.fullscreenBackdrop 跟著底色變並發出通知；
     REQUIRE(waitFor([&] { return view.fullscreenBackdrop() == u"#240f0f"_s; }));
     CHECK(*notified == 1);
 }
+
+TEST_CASE("AC-17-6：淺色底色要的封面主色原值另外交出；沒有封面、clear、沒有接底色時是空字串") {
+    BackdropFixture f;
+    LyrDatabase db;
+    FakePlaybackService playback;
+    LyricsLoader lyrics(f.jobs, f.library, *db.db);
+    LyricsView view(lyrics, playback, nullptr);
+    CHECK(view.fullscreenCoverColor().isEmpty());
+
+    view.setBackdrop(&f.loader);
+    f.loader.load(f.track(u"red"_s, 0xff0000));
+    REQUIRE(waitFor([&] { return view.fullscreenCoverColor() == u"#ff0000"_s; }));
+    CHECK(view.fullscreenBackdrop() == u"#240f0f"_s);
+
+    // 壓暗後同色、原值不同的兩張封面：原值變了也要通知（淺色版會不同）
+    const auto notified = countSignal(&view, &LyricsView::fullscreenBackdropChanged);
+    f.loader.load(f.track(u"red2"_s, 0xfe0000));
+    REQUIRE(waitFor([&] { return view.fullscreenCoverColor() == u"#fe0000"_s; }));
+    CHECK(*notified == 1);
+
+    f.loader.load(f.track(u"unreadable"_s, std::nullopt));
+    REQUIRE(waitFor([&] { return view.fullscreenCoverColor().isEmpty(); }));
+    f.loader.load(f.track(u"red"_s, 0xff0000));
+    REQUIRE(waitFor([&] { return view.fullscreenCoverColor() == u"#ff0000"_s; }));
+    f.loader.clear();
+    CHECK(view.fullscreenCoverColor().isEmpty());
+}

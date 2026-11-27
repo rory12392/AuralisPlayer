@@ -22,11 +22,9 @@ using Fixture = auralis::test::ImportFixture;
 
 namespace {
 
-/// 音樂庫的替身：refs 是音樂庫裡的曲目；tracks() 記錄呼叫次數。
-class CueLibrary final : public auralis::LibraryQuery {
+/// 音樂庫的替身：refs 是音樂庫裡的曲目；tracks() 記錄呼叫次數；findByIdentity 也查 refs。
+class CueLibrary final : public auralis::test::RefsLibrary {
 public:
-    QList<TrackRef> refs;
-    mutable int tracksCalls = 0;
     auralis::Result<std::optional<TrackInfo>> findByIdentity(const QString& path,
                                                              quint32 subsong) const override {
         for (const TrackRef& ref : refs) {
@@ -37,26 +35,6 @@ public:
             }
         }
         return std::optional<TrackInfo>();
-    }
-    auralis::Result<QList<TrackInfo>> tracks(const auralis::TrackFilter&) const override {
-        ++tracksCalls;
-        QList<TrackInfo> result;
-        for (const TrackRef& ref : refs) {
-            TrackInfo info;
-            info.ref = ref;
-            result.append(info);
-        }
-        return result;
-    }
-    auralis::Result<QList<auralis::AlbumInfo>> albums() const override {
-        return QList<auralis::AlbumInfo>();
-    }
-    auralis::Result<QStringList> artists() const override { return QStringList(); }
-    auralis::Result<QList<auralis::FolderInfo>> folders(qint64) const override {
-        return QList<auralis::FolderInfo>();
-    }
-    auralis::Result<QString> readEmbeddedLyrics(const TrackRef&) const override {
-        return QString();
     }
     /// 一張 .cue 的 1..count 軌（故意倒過來放：展開要照軌號排序，不照 tracks() 的順序）。
     void addCue(const QString& cue, quint32 count) {

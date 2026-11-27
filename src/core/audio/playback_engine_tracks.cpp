@@ -46,6 +46,18 @@ PlaybackEngine::Position PlaybackEngine::position() const {
     return position;
 }
 
+bool PlaybackEngine::prefill(const std::function<bool()>& cancelled) {
+    bool more = true;
+    // 開始播放的要求被取代時停在區塊之間，不再讀檔（play() 接著停止並回報取消）
+    while (more && !m_reopenPending && hasRoomForChunk() && !(cancelled && cancelled())) {
+        more = produceChunk();
+    }
+    if (!more) {
+        finishDecoding(m_error);
+    }
+    return more;
+}
+
 void PlaybackEngine::prefetchNext() {
     if (m_askedNext) {
         return;

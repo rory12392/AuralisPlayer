@@ -56,7 +56,8 @@ Result<PlaybackEngine::Status> PlaybackEngine::play(std::unique_ptr<IAudioSource
     return play(std::move(track), backend);
 }
 
-Result<PlaybackEngine::Status> PlaybackEngine::play(EngineTrack track, IOutputBackend& backend) {
+Result<PlaybackEngine::Status> PlaybackEngine::play(EngineTrack track, IOutputBackend& backend,
+                                                    const std::function<bool()>& cancelled) {
     stop();
     if (!track.source) {
         return Error{QStringLiteral("沒有音源"), 0, QStringLiteral("PlaybackEngine::play")};
@@ -96,12 +97,10 @@ Result<PlaybackEngine::Status> PlaybackEngine::play(EngineTrack track, IOutputBa
     }
 
     // 先填滿緩衝，裝置一開始就有資料，不會以欠載開場（格式不同的下一首等裝置跑起來再換）
-    bool more = true;
-    while (more && !m_reopenPending && hasRoomForChunk()) {
-        more = produceChunk();
-    }
-    if (!more) {
-        finishDecoding(m_error);
+    const bool more = prefill(cancelled);
+    if (cancelled && cancelled()) {
+        stop();
+        return Error{QStringLiteral("開始播放已取消"), 0, QStringLiteral("PlaybackEngine::play")};
     }
     auto started = backend.start(*this);
     if (!started) {

@@ -1,6 +1,10 @@
 qt_add_executable(AuralisPlayer WIN32
     gui.cpp
     gui.h
+    gui_hooks.cpp
+    gui_hooks.h
+    gui_screenshot.cpp
+    gui_screenshot.h
     main.cpp
     play_entry.cpp
     play_entry.h

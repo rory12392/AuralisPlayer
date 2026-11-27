@@ -49,7 +49,16 @@ Result<QImage> decodeCoverSource(const QString& source, int maxSide) {
 
 CoverServiceImpl::CoverServiceImpl(const QString& databasePath) : m_databasePath(databasePath) {}
 
-CoverServiceImpl::~CoverServiceImpl() = default;
+// 成員（資料庫連線）在函式本體之後才解構，所以進行中的讀圖寫完縮圖紀錄才關連線
+CoverServiceImpl::~CoverServiceImpl() {
+    shutdown();
+}
+
+void CoverServiceImpl::shutdown(int timeoutMs) {
+    if (!m_gate->close(timeoutMs)) {
+        qCWarning(lcCovers).noquote() << "封面讀圖在" << timeoutMs << "毫秒內沒有結束";
+    }
+}
 
 QString CoverServiceImpl::cacheDir() const {
     return m_databasePath.isEmpty()

@@ -6,7 +6,7 @@ aqtinstall 3.3.0 裝不了 Qt 6.11：官方倉庫從 6.11 起把每個架構拆�
 aqt 支援新結構後，CI 改回 jurplel/install-qt-action。
 
 用法：
-    python tools/install_qt.py --version 6.11.3 --arch win64_msvc2022_64 --out <資料夾>
+    python tools/install_qt.py --version 6.12.1 --arch win64_msvc2022_64 --out <資料夾>
 解壓後的 Qt 在 <資料夾>（裡面直接是 bin/、lib/…，新格式的壓縮檔沒有版本資料夾前綴）。
 """
 import argparse

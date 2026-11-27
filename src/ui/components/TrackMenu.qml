@@ -15,7 +15,7 @@ import QtQuick.Templates as T
 // TrackMenuGroup（好幾個項目）；建立時給 required property string payloadJson，有宣告
 // property int trackCount 的也會給。每次打開都重新建立、關閉後銷毀。載不到的區塊只讓那一段不出現並寫日誌。
 Menu {
-    id: menu
+    id: trackMenu
 
     /// 這次打開時的內容與曲目數（只帶查詢條件時曲目數由呼叫端給）。
     property string payloadJson
@@ -68,24 +68,25 @@ Menu {
     function addSection(section, index) {
         const component = Qt.createComponent(section.source)
         if (component.status !== Component.Ready) {
-            console.warn(menu.log, "曲目選單區塊載入失敗", section.id, component.errorString())
+            console.warn(trackMenu.log, "曲目選單區塊載入失敗", section.id, component.errorString())
             return index
         }
         // 父物件給選單的清單（Item）：MenuItem 是 Item，掛在非 Item 底下 Qt 會警告
-        const root = component.createObject(menu.contentItem, { payloadJson: menu.payloadJson })
+        const root = component.createObject(trackMenu.contentItem, { payloadJson: trackMenu.payloadJson })
         if (root === null) {
-            console.warn(menu.log, "曲目選單區塊建立失敗", section.id, component.errorString())
+            console.warn(trackMenu.log, "曲目選單區塊建立失敗", section.id, component.errorString())
             return index
         }
         if ("trackCount" in root)
-            root.trackCount = menu.trackCount
+            // 只有宣告了 trackCount 的區塊才有（上一行已檢查），createObject 的靜態型別看不到
+            root.trackCount = trackMenu.trackCount // qmllint disable missing-property
         if (root instanceof T.Menu) {
-            menu.insertMenu(index, root)
+            trackMenu.insertMenu(index, root)
             sections.push({ root: root, kind: "menu" })
             return index + 1
         }
         if (root instanceof T.MenuItem) {
-            menu.insertItem(index, root)
+            trackMenu.insertItem(index, root)
             sections.push({ root: root, kind: "item" })
             return index + 1
         }
@@ -94,16 +95,16 @@ Menu {
             for (let i = 0; i < group.items.length; ++i) {
                 const item = group.items[i]
                 if (item instanceof T.Menu)
-                    menu.insertMenu(index++, item)
+                    trackMenu.insertMenu(index++, item)
                 else if (item instanceof T.MenuItem)
-                    menu.insertItem(index++, item)
+                    trackMenu.insertItem(index++, item)
                 else
-                    console.warn(menu.log, "曲目選單區塊有不是選單項目的內容", section.id)
+                    console.warn(trackMenu.log, "曲目選單區塊有不是選單項目的內容", section.id)
             }
             sections.push({ root: root, kind: "group" })
             return index
         }
-        console.warn(menu.log, "曲目選單區塊的根不是 MenuItem、Menu 或 TrackMenuGroup", section.id)
+        console.warn(trackMenu.log, "曲目選單區塊的根不是 MenuItem、Menu 或 TrackMenuGroup", section.id)
         root.destroy()
         return index
     }
@@ -111,16 +112,16 @@ Menu {
     function clearSections() {
         for (const entry of sections) {
             if (entry.kind === "menu") {
-                menu.removeMenu(entry.root)
+                trackMenu.removeMenu(entry.root)
             } else if (entry.kind === "item") {
-                menu.removeItem(entry.root)
+                trackMenu.removeItem(entry.root)
             } else {
                 for (let i = 0; i < entry.root.items.length; ++i) {
                     const item = entry.root.items[i]
                     if (item instanceof T.Menu)
-                        menu.removeMenu(item)
+                        trackMenu.removeMenu(item)
                     else if (item instanceof T.MenuItem)
-                        menu.removeItem(item)
+                        trackMenu.removeItem(item)
                 }
                 entry.root.destroy()
             }
@@ -146,28 +147,28 @@ Menu {
     MenuItem {
         text: qsTr("播放")
         shortcut: "Enter"
-        enabled: menu.canQueue
-        onTriggered: Player.playTracks(menu.payloadJson)
+        enabled: trackMenu.canQueue
+        onTriggered: Player.playTracks(trackMenu.payloadJson)
     }
     MenuItem {
         text: qsTr("接著播放")
         shortcut: "Shift+Enter"
-        enabled: menu.canQueue
-        onTriggered: Player.enqueueNext(menu.payloadJson)
+        enabled: trackMenu.canQueue
+        onTriggered: Player.enqueueNext(trackMenu.payloadJson)
     }
     MenuItem {
         text: qsTr("加到佇列最後")
         shortcut: "Ctrl+Enter"
-        enabled: menu.canQueue
-        onTriggered: Player.enqueueLast(menu.payloadJson)
+        enabled: trackMenu.canQueue
+        onTriggered: Player.enqueueLast(trackMenu.payloadJson)
     }
     // 模組區塊插在這裡（第 3 項起）
     MenuItem {
         text: qsTr("開啟檔案位置")
-        visible: menu.singlePath !== ""
+        visible: trackMenu.singlePath !== ""
         enabled: visible
         // 不出現時不佔高度（Menu 的清單照樣排它）
         height: visible ? implicitHeight : 0
-        onTriggered: FileLocation.reveal(menu.singlePath)
+        onTriggered: FileLocation.reveal(trackMenu.singlePath)
     }
 }

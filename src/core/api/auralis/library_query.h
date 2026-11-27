@@ -57,6 +57,12 @@ struct TrackInfo {
     /// CUE 區段（1/75 秒）；整個檔案時為 -1。
     qint64 startCdFrame = -1;
     qint64 endCdFrame = -1;
+    /// 位元率（kbps，AC-10-5）：有損格式（MP3、AAC、Opus、Vorbis）是 FFmpeg 回報的值，
+    /// 其他是檔案大小 × 8 ÷ 長度；CUE 曲目用 FILE 指向的整軌檔。未知或還在背景補值時 nullopt。
+    std::optional<int> bitrate;
+    /// 第一次被掃描進音樂庫的時間（UTC Unix 毫秒）；升級前就在的曲目是檔案的建立時間。
+    /// 還在背景補值、或確實不知道時 nullopt。
+    std::optional<qint64> addedAt;
 };
 
 struct AlbumInfo {
@@ -77,6 +83,10 @@ struct FolderInfo {
     QString name;
 };
 
+/// tracks() 的排序鍵。Default 是專輯藝人、專輯、碟號、軌號、路徑；Bitrate、AddedAt 依該欄
+/// 排序，沒有值（nullopt）的曲目不論升降冪都排在最後，同值時照 Default 的順序（AC-10-5）。
+enum class TrackSort { Default, Bitrate, AddedAt };
+
 /// 曲目篩選條件，各欄都設定時取交集（AC-09-3 的疊加）；空字串或 0 表示不限。
 struct TrackFilter {
     /// 比對曲名、藝人、專輯藝人、專輯、作曲者；不分大小寫與全形半形（AC-09-2）。
@@ -91,6 +101,8 @@ struct TrackFilter {
     qint64 folderId = 0; ///< 只限這個資料夾（不含子資料夾）
     int limit = -1;      ///< -1 表示不限
     int offset = 0;
+    TrackSort sort = TrackSort::Default;
+    bool descending = false; ///< 只對 Bitrate、AddedAt 有效
 };
 
 /// 唯讀查詢音樂庫。查詢方法會讀資料庫或檔案，在工作執行緒呼叫（例：JobRunner 的工作），
@@ -108,7 +120,7 @@ public:
     /// 沒有這首時回傳 std::nullopt。
     virtual Result<std::optional<TrackInfo>> findByIdentity(const QString& path,
                                                             quint32 subsong) const = 0;
-    /// 依條件列出曲目，依專輯藝人、專輯、碟號、軌號、路徑排序。
+    /// 依條件列出曲目，依 filter.sort 排序（預設專輯藝人、專輯、碟號、軌號、路徑）。
     virtual Result<QList<TrackInfo>> tracks(const TrackFilter& filter) const = 0;
     /// 全部專輯，依專輯藝人、專輯名排序。
     virtual Result<QList<AlbumInfo>> albums() const = 0;

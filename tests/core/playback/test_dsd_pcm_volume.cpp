@@ -173,6 +173,7 @@ TEST_CASE(
     f.service.setVolume(40);
     QSignalSpy available(&f.service, &PlaybackService::volumeAvailableChanged);
     f.service.playFrom({a}, 0);
+    f.service.waitForStart();
     REQUIRE(f.service.state() == State::Playing);
     CHECK_FALSE(f.service.volumeAvailable());
     CHECK(f.service.volumeUnavailableReason() == QStringLiteral("DSD 直通時無法調整音量"));
@@ -185,6 +186,7 @@ TEST_CASE(
         f.service.pause();
         f.outputs.setDsdSink(std::make_shared<TestSink>(reason));
         f.service.play();
+        f.service.waitForStart();
         REQUIRE(f.service.state() == State::Playing);
     };
     switchSink(kToPcm);

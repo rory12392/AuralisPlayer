@@ -56,6 +56,14 @@ QVariant SearchResultsModel::data(const QModelIndex& index, int role) const {
         return qualityText(t);
     case CoverUrlRole:
         return t.coverKey.isEmpty() ? QString() : CoverService::imageUrl(t.coverKey);
+    case BitrateRole:
+        return t.bitrate ? QVariant(*t.bitrate) : QVariant();
+    case AddedAtRole:
+        return t.addedAt ? QVariant(*t.addedAt) : QVariant();
+    case BitrateTextRole:
+        return bitrateText(t.bitrate);
+    case AddedTextRole:
+        return addedText(t.addedAt);
     default:
         return {};
     }
@@ -80,7 +88,11 @@ QHash<int, QByteArray> SearchResultsModel::roleNames() const {
             {AlbumIdRole, "albumId"},
             {DurationTextRole, "durationText"},
             {QualityTextRole, "qualityText"},
-            {CoverUrlRole, "coverUrl"}};
+            {CoverUrlRole, "coverUrl"},
+            {BitrateRole, "bitrate"},
+            {AddedAtRole, "addedAt"},
+            {BitrateTextRole, "bitrateText"},
+            {AddedTextRole, "addedText"}};
 }
 
 void SearchResultsModel::reset(QList<TrackInfo> tracks) {

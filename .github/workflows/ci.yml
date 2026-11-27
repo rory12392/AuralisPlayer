@@ -27,22 +27,22 @@ jobs:
 
       # aqtinstall 3.3.0（install-qt-action 用的）裝不了 Qt 6.11 的新倉庫結構，改用自己的腳本；
       # aqt 支援後改回 jurplel/install-qt-action
-      - name: 快取 Qt 6.11.3
+      - name: 快取 Qt 6.12.1
         id: qt-cache
         uses: actions/cache@v6.1.0  # 2026-11-18 查證
         with:
-          path: ${{ runner.temp }}/Qt/6.11.3/msvc2022_64
-          key: qt-6.11.3-win64_msvc2022_64-${{ hashFiles('tools/install_qt.py') }}
+          path: ${{ runner.temp }}/Qt/6.12.1/msvc2022_64
+          key: qt-6.12.1-win64_msvc2022_64-${{ hashFiles('tools/install_qt.py') }}
 
-      - name: 安裝 Qt 6.11.3（官方線上倉庫，驗 SHA1）
+      - name: 安裝 Qt 6.12.1（官方線上倉庫，驗 SHA1）
         if: steps.qt-cache.outputs.cache-hit != 'true'
         shell: pwsh
-        run: python tools/install_qt.py --version 6.11.3 --arch win64_msvc2022_64 --out "$env:RUNNER_TEMP/Qt/6.11.3/msvc2022_64"
+        run: python tools/install_qt.py --version 6.12.1 --arch win64_msvc2022_64 --out "$env:RUNNER_TEMP/Qt/6.12.1/msvc2022_64"
 
       - name: 設定 Qt 路徑
         shell: pwsh
         run: |
-          $qt = "$env:RUNNER_TEMP/Qt/6.11.3/msvc2022_64"
+          $qt = "$env:RUNNER_TEMP/Qt/6.12.1/msvc2022_64"
           "QT_ROOT_DIR=$qt" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "$qt/bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
@@ -74,8 +74,10 @@ jobs:
         if: failure()
         shell: pwsh
         run: |
-          foreach ($f in 'quick-tests', 't-22-quick', 't-50-quick-result', 't-66-quick-result') {
-            $p = ".localdata/tmp/ctest/$f/result.txt"
+          # ui.quick_<檔名> 每個 QML 測試檔一份（quick-tests/<檔名>.txt）
+          $files = @(Get-ChildItem .localdata/tmp/ctest/quick-tests/*.txt -ErrorAction SilentlyContinue | ForEach-Object FullName)
+          foreach ($f in 't-22-quick', 't-50-quick-result', 't-66-quick-result') { $files += ".localdata/tmp/ctest/$f/result.txt" }
+          foreach ($p in $files) {
             if (Test-Path $p) { "==== $p"; Get-Content $p -Encoding utf8 | Select-String -Pattern 'FAIL!|Totals|QWARN|Loc:' }
           }
 

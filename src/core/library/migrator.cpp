@@ -8,6 +8,8 @@
 #include <QLoggingCategory>
 #include <QRegularExpression>
 
+#include <sqlite3.h>
+
 #include <algorithm>
 #include <map>
 #include <stdexcept>
@@ -24,6 +26,8 @@ namespace auralis::core {
 namespace {
 
 constexpr int kBackupsToKeep = 3;
+// 等另一個程式升級完的上限（一般查詢只等 5 秒）
+constexpr int kUpgradeWaitMs = 60000;
 
 QString backupPath(const QString& dbPath, int version) {
     return dbPath + QStringLiteral(".bak-v%1").arg(version);
@@ -46,6 +50,15 @@ Result<int> userVersion(SqliteConnection& db) {
 Error withContext(Error error, const QString& context) {
     error.message = context + error.message;
     return error;
+}
+
+Result<qint64> backupDatabase(const QString& dbPath, const QString& backup) {
+    auto reader = SqliteConnection::open(dbPath);
+    if (!reader) {
+        return reader.error();
+    }
+    QFile::remove(backup);
+    return reader.value()->execute(QStringLiteral("VACUUM INTO ?"), {backup});
 }
 
 } // namespace
@@ -99,22 +112,15 @@ Result<int> migrateDatabase(const QString& dbPath, const std::vector<Migration>&
                      0, QStringLiteral("migrateDatabase")};
     }
 
-    // 版本 0 是剛建立的空資料庫，沒有東西要備份
-    const bool backedUp = from > 0;
-    if (backedUp) {
-        const QString backup = backupPath(dbPath, from);
-        QFile::remove(backup);
-        // VACUUM INTO 產生一致的單一檔案副本（WAL 裡還沒寫回的內容也包含在內）
-        const auto copied = db->execute(QStringLiteral("VACUUM INTO ?"), {backup});
-        if (!copied) {
-            return withContext(copied.error(), QStringLiteral("升級前備份失敗："));
-        }
-        pruneBackups(dbPath, kBackupsToKeep);
-    }
-
-    // 先取得寫入鎖再確認一次版本：同時啟動兩個程式時，後拿到鎖的那個看到的已經是新版本
+    // 先取得寫入鎖再確認一次版本、再備份：同時啟動兩個程式時，後拿到鎖的那個等先開的升級完，
+    // 看到的已經是新版本，不會重複備份（也不會把升級後的內容寫進舊版本的備份）。
+    // 先開的程式升級可能很久（大音樂庫、硬碟忙碌），所以這裡的忙碌等待比一般查詢長
+    sqlite3_busy_timeout(db->handle(), kUpgradeWaitMs);
     if (const auto begun = db->executeScript(QStringLiteral("BEGIN IMMEDIATE;")); !begun) {
-        return withContext(begun.error(), QStringLiteral("無法取得資料庫的寫入鎖："));
+        return withContext(begun.error(),
+                           QStringLiteral("無法取得資料庫的寫入鎖（另一個程式在 %1 秒內沒有"
+                                          "完成升級或寫入）：")
+                               .arg(kUpgradeWaitMs / 1000));
     }
     const auto locked = userVersion(*db);
     if (!locked || locked.value() != from) {
@@ -124,6 +130,19 @@ Result<int> migrateDatabase(const QString& dbPath, const std::vector<Migration>&
         }
         return Error{QStringLiteral("資料庫在升級時被其他程式改變了版本"), 0,
                      QStringLiteral("migrateDatabase")};
+    }
+
+    // 版本 0 是剛建立的空資料庫，沒有東西要備份
+    const bool backedUp = from > 0;
+    if (backedUp) {
+        // VACUUM INTO 不能在交易裡執行，改用另一條連線讀；寫入鎖在這條連線上，
+        // 讀到的就是升級前、不會再被別人改的內容（WAL 裡還沒寫回的也包含在內）
+        const auto copied = backupDatabase(dbPath, backupPath(dbPath, from));
+        if (!copied) {
+            (void)db->executeScript(QStringLiteral("ROLLBACK;"));
+            return withContext(copied.error(), QStringLiteral("升級前備份失敗："));
+        }
+        pruneBackups(dbPath, kBackupsToKeep);
     }
 
     QString script;

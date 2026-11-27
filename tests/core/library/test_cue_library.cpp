@@ -1,11 +1,8 @@
 // CUE 曲目入庫（AC-07-1、AC-07-3）：每軌一首、不重複列整軌檔、編碼、增量、唯讀。
 #include "cue_fixtures.h"
-#include "library_fixtures.h"
+#include "scan_fixture.h"
 
 #include "library/library_query_impl.h"
-#include "library/library_scanner.h"
-#include "library/migrator.h"
-#include "library/sqlite_connection.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -24,27 +21,11 @@ const QString kBilingualAlbum = QStringLiteral("雙語測試專輯：夜と朝")
 const QString kJapaneseAlbum = QStringLiteral("夜明けの街 オリジナル・サウンドトラック");
 const QString kChineseAlbum = QStringLiteral("城市裡的四季 精選輯");
 
-struct Library {
-    QString root;
-    QString databasePath;
-    std::unique_ptr<SqliteConnection> db;
-    QList<LibraryRoot> roots;
+struct Library : ScanFixture {
     std::unique_ptr<LibraryQueryImpl> query;
 
-    explicit Library(const QString& name) {
-        const QString dir = freshTestDir(name);
-        root = dir + QStringLiteral("\\音樂");
-        databasePath = dir + QStringLiteral("\\library.db");
-        REQUIRE(migrateDatabase(databasePath).hasValue());
-        auto opened = SqliteConnection::open(databasePath);
-        REQUIRE(opened.hasValue());
-        db = std::move(opened).value();
-        LibraryWriter writer(*db);
-        roots.append({writer.ensureRoot(root), root});
-        query = std::make_unique<LibraryQueryImpl>(databasePath);
-    }
-
-    ScanReport scan() { return scanLibrary(*db, roots, {}); }
+    explicit Library(const QString& name)
+        : ScanFixture(name), query(std::make_unique<LibraryQueryImpl>(databasePath)) {}
 
     QList<TrackInfo> album(const QString& title) {
         TrackFilter filter;
@@ -248,6 +229,43 @@ TEST_CASE("AC-07-1：兩個 .cue 指向同一個整軌檔時只收錄一份") {
     CHECK(tracks[1].ref.path == tracks[0].ref.path);
     CHECK(tracks[2].ref.path == tracks[0].ref.path);
     CHECK(lib.scan().added == 0); // 被略過的那個 .cue 下次也不會被當成新檔
+}
+
+TEST_CASE("AC-07-1：一軌一檔的 .cue（間隔接在上一個 FILE）每軌一首，各音檔不另列整檔") {
+    Library lib(QStringLiteral("t-112-cue-per-track"));
+    const QString dir = lib.root + QStringLiteral("\\一軌一檔");
+    for (const char* name : {"01.flac", "02.flac", "03.flac"}) {
+        writeFlac(dir + QLatin1Char('\\') + QString::fromLatin1(name), {}, 44100, 16, 44100 * 2);
+    }
+    // 音檔放在 .cue 旁邊的那張收錄；.cue 放在只有 .cue 的子資料夾的那張照實說找不到音訊檔
+    const QByteArray cue = QByteArrayLiteral("TITLE \"一軌一檔\"\r\n"
+                                             "FILE \"01.wav\" WAVE\r\n"
+                                             "  TRACK 01 AUDIO\r\n    INDEX 01 00:00:00\r\n"
+                                             "  TRACK 02 AUDIO\r\n    INDEX 00 00:01:00\r\n"
+                                             "FILE \"02.wav\" WAVE\r\n    INDEX 01 00:00:00\r\n"
+                                             "  TRACK 03 AUDIO\r\n    INDEX 00 00:01:50\r\n"
+                                             "FILE \"03.wav\" WAVE\r\n    INDEX 01 00:00:00\r\n");
+    writeBytes(dir + QStringLiteral("\\album.cue"), cue);
+    writeBytes(lib.root + QStringLiteral("\\另一張\\CUE\\album.cue"), cue);
+    writeFlac(lib.root + QStringLiteral("\\另一張\\01.flac"), {}, 44100, 16, 44100);
+
+    const ScanReport report = lib.scan();
+    const auto tracks = lib.album(QStringLiteral("一軌一檔"));
+    REQUIRE(tracks.size() == 3);
+    for (int i = 0; i < 3; ++i) {
+        CAPTURE(i);
+        CHECK(tracks[i].ref.path == dir + QStringLiteral("\\album.cue"));
+        CHECK(tracks[i].ref.subsong == static_cast<quint32>(i + 1));
+        CHECK(tracks[i].durationMs == 2000); // 每軌是自己的整個音檔
+        const auto audio = lib.query->audioFilePath(tracks[i].ref);
+        REQUIRE(audio.hasValue());
+        CHECK(audio.value() == dir + QStringLiteral("\\0%1.flac").arg(i + 1));
+    }
+    // 三首＋另一張的整檔 01.flac；一軌一檔的音檔本身不重複列
+    CHECK(lib.all().size() == 4);
+    REQUIRE(report.failures.size() == 1);
+    CHECK(report.failures[0].path.endsWith(QStringLiteral("\\CUE\\album.cue")));
+    CHECK(report.failures[0].error.contains(QStringLiteral("找不到 CUE 指向的音訊檔")));
 }
 
 TEST_CASE("T-77：audioFilePath 一般曲目回傳 ref.path 本身，單 FILE 的 CUE 每軌回傳整軌檔") {

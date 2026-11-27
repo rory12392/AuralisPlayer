@@ -6,6 +6,7 @@
 // （和 PluginManager 一樣重新啟動後生效）。
 
 #include "shell/plugins_controller.h"
+#include "ui_scale_probe.h"
 
 #include <auralis/dialogs.h>
 
@@ -41,10 +42,13 @@ public:
     ~PluginsProbe() override { ui::PluginsController::setOpenUrlHook({}); }
 
     /// 主程式的接法：在建立 QML 引擎後、測試載入前呼叫一次。
+    /// 設定頁另一個要假資料的分區（外觀的介面縮放，tst_ui_scale，T-116）也在這裡接好：
+    /// quick_test_main.cpp 已到單檔 400 行上限，放不下另外的呼叫。
     void install(QQmlEngine* engine, Dialogs* dialogs) {
         m_controller = std::make_unique<ui::PluginsController>(backend(), dialogs);
         ui::PluginsController::setInstance(m_controller.get());
         engine->rootContext()->setContextProperty(QStringLiteral("pluginsProbe"), this);
+        UiScaleProbe::install(engine);
     }
 
     QStringList calls() const { return m_calls; }

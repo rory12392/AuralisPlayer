@@ -38,9 +38,42 @@ Item {
         model: ["專輯藝人（依年份與光碟編號）"]
     }
 
+    // 最小視窗 960×640 時頂列搜尋框只剩約 95 px：提示文字要在框內截斷（T-110）
+    SearchField {
+        id: narrowSearch
+        x: 450
+        y: 100
+        width: 95
+        placeholderText: "搜尋曲名、藝人、專輯"
+        findShortcut: false
+    }
+
     SignalSpy { id: accepted; target: textField; signalName: "accepted" }
     SignalSpy { id: radio3Selected; target: radio3; signalName: "selected" }
     SignalSpy { id: selectActivated; target: select; signalName: "activated" }
+
+    // 個別選項停用的 Select（介面縮放，AC-19-4）：中間與最後兩個不能選
+    Select {
+        id: scaleSelect
+        x: 450
+        y: 200
+        label: "介面縮放"
+        model: [{ text: "跟隨系統（150%）" }, { text: "100%" }, { text: "125%", enabled: false, reason: "這個螢幕放不下" },
+                { text: "150%" }, { text: "175%", enabled: false, reason: "這個螢幕放不下" },
+                { text: "200%", enabled: false, reason: "這個螢幕放不下" }]
+    }
+    SignalSpy { id: scaleActivated; target: scaleSelect; signalName: "activated" }
+
+    // 頭尾都停用、開頭字母各不相同的 Select：Home、End、字元搜尋、確認鍵放開（T-125）
+    Select {
+        id: edgeSelect
+        x: 450
+        y: 440
+        label: "取樣率"
+        model: [{ text: "Auto", enabled: false, reason: "裝置不支援" }, { text: "Bypass" }, { text: "Coarse" },
+                { text: "Dither", enabled: false, reason: "裝置不支援" }]
+    }
+    SignalSpy { id: edgeActivated; target: edgeSelect; signalName: "activated" }
 
     TestCase {
         name: "TextField"
@@ -101,6 +134,19 @@ Item {
             keyClick(Qt.Key_Tab)
             verify(root.focusItem() !== search && root.focusItem().iconName !== "clear", "清除鈕不在 Tab 順序裡")
             search.text = ""
+        }
+
+        // T-110（P-47）：框太窄時提示文字截斷在框內，寬的時候完整顯示
+        function test_placeholder_stays_inside_narrow_field() {
+            const narrow = findChild(narrowSearch, "searchPlaceholder")
+            verify(narrow !== null)
+            verify(narrow.visible)
+            verify(narrow.x + narrow.width <= narrowSearch.width - narrowSearch.rightPadding,
+                   "提示文字右緣 " + (narrow.x + narrow.width) + " 超出框內 " + (narrowSearch.width - narrowSearch.rightPadding))
+            verify(narrow.truncated, "窄框要截斷")
+            const wide = findChild(search, "searchPlaceholder")
+            search.text = ""
+            verify(!wide.truncated, "300 px 寬時完整顯示")
         }
     }
 
@@ -172,6 +218,109 @@ Item {
             verify(value.truncated)
             // 放得下的不截斷
             verify(!findValue(select).truncated)
+        }
+
+        function delegateAt(control, index) {
+            const list = control.popup.contentItem
+            return list.itemAtIndex(index)
+        }
+
+        function test_disabled_options_skipped_by_keys_and_mouse() {
+            scaleActivated.clear()
+            scaleSelect.currentIndex = 1
+            scaleSelect.forceActiveFocus(Qt.TabFocusReason)
+            // 清單關著：下鍵跳過停用的 125%，直接到 150%；再往下沒有可用的就不動
+            keyClick(Qt.Key_Down)
+            compare(scaleSelect.currentIndex, 3)
+            compare(scaleActivated.count, 1)
+            keyClick(Qt.Key_Down)
+            compare(scaleSelect.currentIndex, 3)
+            compare(scaleActivated.count, 1)
+            keyClick(Qt.Key_Up)
+            compare(scaleSelect.currentIndex, 1)
+
+            // 清單開著：停用的選項文字接原因、用 inkFaint；上下鍵醒目列也跳過它
+            keyClick(Qt.Key_Space)
+            tryCompare(scaleSelect.popup, "opened", true)
+            // 清單剛開時高度還沒長開，長高後新排出的選項要等下一次排版才點得到；
+            // Release 跑得快，不等的話下面的點擊在排版前送出、落空（T-123）
+            verify(waitForPolish(scaleSelect.Window.window))
+            const disabled = delegateAt(scaleSelect, 2)
+            verify(disabled !== null)
+            verify(!disabled.enabled)
+            compare(disabled.text, "125%（這個螢幕放不下）")
+            compare(disabled.contentItem.color, Theme.inkFaint)
+            compare(delegateAt(scaleSelect, 1).contentItem.color, Theme.ink)
+            keyClick(Qt.Key_Down)
+            compare(scaleSelect.highlightedIndex, 3)
+            keyClick(Qt.Key_Down)
+            compare(scaleSelect.highlightedIndex, 3)
+
+            // 滑鼠點停用的選項：不選、清單不關
+            mouseClick(delegateAt(scaleSelect, 4))
+            compare(scaleSelect.currentIndex, 1)
+            verify(scaleSelect.popup.visible)
+            // 醒目列被滑鼠移到停用的選項上時，Enter 也不選它
+            mouseMove(delegateAt(scaleSelect, 4))
+            if (scaleSelect.highlightedIndex === 4) {
+                keyClick(Qt.Key_Return)
+                compare(scaleSelect.currentIndex, 1)
+            }
+            // 點可用的選項照常選
+            mouseClick(delegateAt(scaleSelect, 3))
+            tryCompare(scaleSelect.popup, "visible", false)
+            compare(scaleSelect.currentIndex, 3)
+            compare(scaleSelect.displayText, "150%")
+        }
+
+        function test_home_end_search_and_release_skip_disabled() {
+            edgeActivated.clear()
+            edgeSelect.currentIndex = 1
+            edgeSelect.forceActiveFocus(Qt.TabFocusReason)
+            // 清單關著：End、Home 停在最後、最前一個可用的；打停用選項的開頭字不選它
+            keyClick(Qt.Key_End)
+            compare(edgeSelect.currentIndex, 2)
+            keyClick(Qt.Key_Home)
+            compare(edgeSelect.currentIndex, 1)
+            keyClick("d")
+            compare(edgeSelect.currentIndex, 1)
+            keyClick("a")
+            compare(edgeSelect.currentIndex, 1)
+            keyClick("c")
+            compare(edgeSelect.currentIndex, 2)
+            for (let i = 0; i < edgeActivated.count; ++i)
+                verify(edgeSelect.optionEnabled(edgeActivated.signalArguments[i][0]))
+
+            // 清單開著：醒目列也一樣
+            keyClick(Qt.Key_Space)
+            tryCompare(edgeSelect.popup, "opened", true)
+            verify(waitForPolish(edgeSelect.Window.window))
+            keyClick(Qt.Key_End)
+            compare(edgeSelect.highlightedIndex, 2)
+            keyClick(Qt.Key_Home)
+            compare(edgeSelect.highlightedIndex, 1)
+            keyClick("a")
+            compare(edgeSelect.highlightedIndex, 1)
+            keyClick(Qt.Key_Escape)
+            tryCompare(edgeSelect.popup, "visible", false)
+            compare(edgeSelect.currentIndex, 2)
+
+            // 目前值本身停用（例：換了螢幕）時清單一開醒目的就是它：確認鍵按下、放開都不選它、清單不關
+            edgeSelect.currentIndex = 3
+            edgeActivated.clear()
+            keyClick(Qt.Key_Space)
+            tryCompare(edgeSelect.popup, "opened", true)
+            compare(edgeSelect.highlightedIndex, 3)
+            keyPress(Qt.Key_Return)
+            keyRelease(Qt.Key_Return)
+            verify(edgeSelect.popup.visible)
+            keyPress(Qt.Key_Space)
+            keyRelease(Qt.Key_Space)
+            verify(edgeSelect.popup.visible)
+            compare(edgeActivated.count, 0)
+            keyClick(Qt.Key_Escape)
+            tryCompare(edgeSelect.popup, "visible", false)
+            compare(edgeSelect.currentIndex, 3)
         }
     }
 

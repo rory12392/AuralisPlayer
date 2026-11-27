@@ -5,6 +5,7 @@
 #include "fake_playback_service.h"
 #include "native_dsd_sink.h"
 #include "pcm_convert_sink.h"
+#include "test_qt_app.h"
 
 #include <auralis/audio_output.h>
 #include <auralis/module_settings.h>
@@ -28,12 +29,7 @@ namespace {
 
 /// 佇列的事件（輸出狀態送來的輸出路徑、通知）要有 QCoreApplication 才送得出去。
 void ensureApp() {
-    static int argc = 1;
-    static char name[] = "auralis_out_tests";
-    static char* argv[] = {name, nullptr};
-    if (QCoreApplication::instance() == nullptr) {
-        new QCoreApplication(argc, argv);
-    }
+    auralis::test::ensureQtApp("auralis_out_tests");
 }
 
 void flush() {

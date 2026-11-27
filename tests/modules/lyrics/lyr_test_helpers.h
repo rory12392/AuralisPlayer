@@ -4,6 +4,7 @@
 // 升級到最新 schema 的測試資料庫。
 #include "library/migrator.h"
 #include "library/module_database_impl.h"
+#include "test_qt_app.h"
 
 #include <auralis/library_query.h>
 
@@ -28,12 +29,7 @@
 namespace auralis::test {
 
 inline void ensureApp() {
-    if (QCoreApplication::instance() == nullptr) {
-        static int argc = 1;
-        static char name[] = "auralis_lyr_tests";
-        static char* argv[] = {name, nullptr};
-        new QCoreApplication(argc, argv); // 整個測試行程共用，不釋放
-    }
+    ensureQtApp("auralis_lyr_tests");
 }
 
 /// 跑事件迴圈直到 condition 成立或逾時；回傳 condition 的最後結果。

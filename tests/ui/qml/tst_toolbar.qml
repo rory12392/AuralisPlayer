@@ -50,8 +50,9 @@ Item {
             shell.height = root.height
             ShellState.panelOpen = true
             verify(Navigator.open("test/toolbar-page"))
-            // Row 在下一次畫面更新前才重新排（polish），等它排好再量位置
-            waitForRendering(shell)
+            // Row 在下一次畫面更新前才重新排（polish），等它排好再量位置。等排版而不是等畫面：
+            // 頁面沒變時不會有新的一格，waitForRendering 會等滿 5 秒逾時（T-119）
+            waitForPolish(shell.Window.window)
         }
 
         function test_items_in_order() {
@@ -146,7 +147,7 @@ Item {
         }
 
         function test_screenshots() {
-            waitForRendering(shell)
+            waitForPolish(shell.Window.window)
             // save 失敗時丟例外，測試就失敗
             grabImage(shell).save(testTmpDir + "/t-28-toolbar-1600x900.png")
             shell.width = 960

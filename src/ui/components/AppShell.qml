@@ -66,12 +66,19 @@ Item {
         else
             event.accepted = false
     }
-    // 全螢幕頁一律用 Void 的 token（DESIGN §2.3、T-94）：全螢幕期間有效主題是 Void，
+    // 全螢幕頁的主題（DESIGN §2.3、T-94、T-121）：全螢幕期間有效主題照全螢幕頁的
+    // property string fullscreenTheme（dark／light／follow，沒有提供時 dark），
     // 和切頁在同一個訊號裡換好，不會畫出一幀主題不對的畫面；不改使用者的 ui/theme 設定
     Binding {
         target: ThemeController
-        property: "forceVoid"
+        property: "fullscreen"
         value: shell.fullscreen
+    }
+    Binding {
+        target: ThemeController
+        property: "fullscreenTheme"
+        value: fullscreenArea.page && typeof fullscreenArea.page.fullscreenTheme === "string"
+               ? fullscreenArea.page.fullscreenTheme : "dark"
     }
     onFullscreenChanged: {
         // 離開全螢幕後按鍵回到殼（空白鍵＝播放／暫停）
@@ -340,6 +347,7 @@ Item {
 
     // 全螢幕頁蓋住整個視窗（例：全螢幕正在播放）；載入後鍵盤焦點給頁面，按鍵頁面先處理
     PageArea {
+        id: fullscreenArea
         objectName: "fullscreenArea"
         anchors.fill: parent
         visible: shell.fullscreen

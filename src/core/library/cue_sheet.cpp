@@ -89,7 +89,14 @@ Result<CueSheet> parseCueSheet(const QString& text) {
                 return cueError(where + QStringLiteral("的 FILE 沒有檔名"));
             }
             sheet.files.push_back(parts[1]);
-            current = -1;
+            // 一軌一檔的抓軌方式會把下一軌的 TRACK 與 INDEX 00（間隔）寫在上一個 FILE 裡、
+            // INDEX 01 寫在新的 FILE：這一軌屬於新的檔案，間隔照區段規則算在上一軌的結尾
+            if (current >= 0 && sheet.tracks[static_cast<size_t>(current)].start < 0) {
+                sheet.tracks[static_cast<size_t>(current)].fileIndex =
+                    static_cast<int>(sheet.files.size()) - 1;
+            } else {
+                current = -1;
+            }
             skipTrack = false;
         } else if (keyword == QLatin1String("TRACK")) {
             if (sheet.files.empty()) {

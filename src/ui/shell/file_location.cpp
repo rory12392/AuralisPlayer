@@ -84,7 +84,6 @@ void FileLocation::reveal(const QString& path) {
 }
 
 void FileLocation::finishReveal(const QString& path, bool found) {
-    bool shown = false;
     if (!found) {
         qCWarning(lcFileLocation) << "開啟檔案位置：檔案不存在" << path;
         if (core::NotifierImpl* notifier = detail::notifier()) {
@@ -92,11 +91,10 @@ void FileLocation::finishReveal(const QString& path, bool found) {
                            QStringLiteral("error"));
         }
     } else if (revealHook()) {
-        shown = revealHook()(path);
+        revealHook()(path);
     } else {
-        shown = revealInExplorer(path);
+        revealInExplorer(path); // 開不了時它自己寫日誌
     }
-    emit revealFinished(path, shown);
 }
 
 void FileLocation::setRevealHook(RevealHook hook) {

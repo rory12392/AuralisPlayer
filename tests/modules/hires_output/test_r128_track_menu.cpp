@@ -2,6 +2,7 @@
 // R128TrackMenuSection.qml，確認收到 payloadJson 後觸發就交給單例 R128 的 computeTracks、
 // 計算中停用、只帶查詢條件（超過 5,000 首）時停用。
 #include "r128_controller.h"
+#include "test_qt_app.h"
 
 #include "library/migrator.h"
 #include "library/module_database_impl.h"
@@ -33,12 +34,7 @@ namespace {
 
 /// QML 要 QGuiApplication；ctest 每個測試案例各自一個行程，所以這裡建立的就是這個行程唯一的。
 void ensureGuiApp() {
-    static int argc = 1;
-    static char name[] = "auralis_out_tests";
-    static char* argv[] = {name, nullptr};
-    if (QCoreApplication::instance() == nullptr) {
-        new QGuiApplication(argc, argv);
-    }
+    auralis::test::ensureQtApp<QGuiApplication>("auralis_out_tests");
     REQUIRE(qobject_cast<QGuiApplication*>(QCoreApplication::instance()) != nullptr);
 }
 

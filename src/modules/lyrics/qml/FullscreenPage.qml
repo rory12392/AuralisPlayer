@@ -1,8 +1,9 @@
 import QtQuick
 import Auralis.Ui
 
-// 全螢幕正在播放（畫面規格 S-15，頁面 id fullscreen，US-17）。一律用 Void 的 token（fs*），不分深淺色。
-// 上列（64）：「正在播放」與按鍵說明；中段：左邊大封面（視窗高的 54%，最大 720）、曲名、「<藝人>　<專輯>」，
+// 全螢幕正在播放（畫面規格 S-15，頁面 id fullscreen，US-17）。主題由設定 LYR/fullscreenTheme 決定
+// （深色／淺色／跟隨主程式，AC-17-6）：頁面只宣告 fullscreenTheme，核心照它套用，fs* token 跟著有效主題。
+// 上列（64）：「正在播放」、按鍵說明與深淺色切換鈕；中段：左邊大封面（視窗高的 54%，最大 720）、曲名、「<藝人>　<專輯>」，
 // 右邊歌詞（目前行 display／fsInk 垂直置中，其他行 lyric／fsInkMuted；點一行跳轉）；下列（96）：進度與時間、
 // 輸出狀態。沒有歌詞、純音樂、線上暫時取不到時右欄不顯示，封面與曲名置中。
 // 按鍵（AC-17-3）：核心載入後把焦點給這個根物件；空白鍵播放／暫停、左右鍵上一首／下一首在這裡處理，
@@ -14,12 +15,16 @@ Item {
     id: page
 
     objectName: "fullscreenPage"
-    // 底色：封面主色壓暗（C++ 算好給 Lyrics，沒有封面時 #050505）；換歌時以 motionTint 過渡（AC-17-2）
-    property color backdrop: Lyrics.fullscreenBackdrop
+    // 這一頁要的主題（AC-17-6）：主視窗殼把它繫到 ThemeController，進全螢幕與切換時同一個呼叫裡換好
+    readonly property string fullscreenTheme: Lyrics.fullscreenTheme
+    // 底色：深色＝封面主色壓暗（C++ 算好給 Lyrics，沒有封面時 #050505）；淺色＝封面主色提亮（核心算，
+    // 沒有封面時 Paper 的 bg）。換歌時以 motionTint 過渡（AC-17-2）；換深淺色的那一刻 motionTint 是 0，直接換
+    property color backdrop: Theme.dark ? Lyrics.fullscreenBackdrop
+                                        : ThemeController.lightBackdrop(Lyrics.fullscreenCoverColor)
     // 滑鼠多久不動算閒置（毫秒）
     property int idleDelay: 3000
     readonly property bool idle: idleState.idle
-    readonly property bool controlsShown: !page.idle || progress.activeFocus
+    readonly property bool controlsShown: !page.idle || progress.activeFocus || themeButton.activeFocus
     // 右欄要不要顯示歌詞；載入中維持上一首的版面，結果出來再換（切歌時不先跳一次）
     // （不寫成繫結：繫結在「載入中」時也會重算）
     property bool showLyrics: false
@@ -41,6 +46,10 @@ Item {
         idleState.lastY = y
         page.wake()
     }
+    // T 鍵與切換鈕：依目前看到的主題換成另一個（跟隨主程式時也改成明確的值，S-15）
+    function toggleTheme() {
+        Lyrics.setFullscreenTheme(Theme.dark ? "light" : "dark")
+    }
 
     focus: true
     Accessible.role: Accessible.Pane
@@ -61,6 +70,10 @@ Item {
         } else if (event.key === Qt.Key_Right) {
             event.accepted = true
             Player.next()
+        } else if (event.key === Qt.Key_T) {
+            event.accepted = true
+            if (!event.isAutoRepeat)
+                page.toggleTheme()
         }
         // Esc 與其他按鍵不接：Esc 傳到殼（離開全螢幕）
     }
@@ -210,12 +223,25 @@ Item {
         }
         Text {
             objectName: "fsKeyHints"
+            anchors.right: themeButton.left
+            anchors.rightMargin: Theme.space4
+            anchors.verticalCenter: parent.verticalCenter
+            text: [qsTr("空白鍵 播放／暫停"), qsTr("← → 切歌"), qsTr("T 深淺色"), qsTr("Esc 離開")].join("　　")
+            font: Theme.monoSmall
+            color: Theme.fsInkMuted
+        }
+        // 深淺色切換鈕（AC-17-6）：兩態，結果寫進設定。滑鼠按了不搶焦點（空白鍵照舊是播放／暫停），
+        // Tab 走得到；有焦點時上下兩列保持顯示
+        IconButton {
+            id: themeButton
+            objectName: "fsThemeButton"
             anchors.right: parent.right
             anchors.rightMargin: Theme.space12
             anchors.verticalCenter: parent.verticalCenter
-            text: [qsTr("空白鍵 播放／暫停"), qsTr("← → 切歌"), qsTr("Esc 離開")].join("　　")
-            font: Theme.monoSmall
-            color: Theme.fsInkMuted
+            iconName: "contrast"
+            text: Theme.dark ? qsTr("切換成淺色") : qsTr("切換成深色")
+            focusPolicy: Qt.TabFocus
+            onClicked: page.toggleTheme()
         }
     }
 
@@ -237,7 +263,7 @@ Item {
         }
 
         Text {
-            id: position
+            id: positionText
             objectName: "fsPosition"
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
@@ -249,7 +275,7 @@ Item {
         Slider {
             id: progress
             objectName: "fsProgress"
-            anchors.left: position.right
+            anchors.left: positionText.right
             anchors.leftMargin: Theme.space3
             anchors.right: duration.left
             anchors.rightMargin: Theme.space3

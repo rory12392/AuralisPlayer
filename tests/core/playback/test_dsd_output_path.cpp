@@ -98,6 +98,7 @@ TEST_CASE("AC-04-2（T-49）：DoP 包裝器遇到會改動訊號的輸出路徑
     const TrackRef a = addDsd(f, QStringLiteral("a"), 1.0);
     QSignalSpy skipped(&f.service, &PlaybackService::trackSkipped);
     f.service.playFrom({a}, 0);
+    f.service.waitForStart();
     REQUIRE(skipped.size() == 1);
     CHECK(skipped.at(0).at(1).toString().contains(QStringLiteral("共享模式")));
     CHECK(f.service.state() == State::Stopped);
@@ -122,6 +123,7 @@ TEST_CASE(
     });
     QSignalSpy skipped(&f.service, &PlaybackService::trackSkipped);
     f.service.playFrom({a}, 0);
+    f.service.waitForStart();
     // 第一次播放選預設輸出時也發
     CHECK(changing == QStringList{QStringLiteral("測試路徑")});
     REQUIRE(f.drive([&] { return f.service.positionMs() > 500; }));
@@ -142,6 +144,7 @@ TEST_CASE("T-49：處理器的 prepareTrack 拿到這一首的身分，無縫接
     const TrackRef a = f.add("a", 1.0);
     const TrackRef b = f.add("b", 1.0);
     f.service.playFrom({a, b}, 0);
+    f.service.waitForStart();
     REQUIRE(f.drive([&] { return f.service.state() == State::Stopped; }));
     const std::lock_guard lock(prepared.mutex);
     CHECK(prepared.paths == QStringList{a.path, b.path});

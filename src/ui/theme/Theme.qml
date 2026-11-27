@@ -16,17 +16,18 @@ QtObject {
     readonly property color inkMuted:      dark ? "#9a968e" : "#57534c"
     readonly property color inkFaint:      dark ? "#6b6862" : "#8a857c"
     readonly property color amber:         dark ? "#e0a34a" : "#8f5810"
-    readonly property color onAmber:       dark ? "#050505" : "#ffffff"
+    // token 名稱照介面規範；Qt 6.12 的 qmllint 把 on 開頭當成 amber 的訊號處理器名稱，這個屬性不是
+    readonly property color onAmber:       dark ? "#050505" : "#ffffff" // qmllint disable signal-handler-name-clash
     readonly property color amberDeep:     dark ? "#5a3a14" : "#ecd3a8"
     readonly property color signal:        dark ? "#e5584b" : "#b3261e"
     readonly property color focus:         ink
     readonly property color transparent:   "transparent"
     readonly property color coverMark:     "#73ffffff"
-    // 全螢幕一律用 Void 的值
-    readonly property color fsInk:      "#f2f0eb"
-    readonly property color fsInkMuted: "#9a968e"
-    readonly property color fsLine:     "#2a2a2a"
-    readonly property color fsAmber:    "#e0a34a"
+    // 全螢幕：等於一般 token，跟著全螢幕的有效主題（M-07，DESIGN §2.3）；新程式直接用一般 token
+    readonly property color fsInk:      ink
+    readonly property color fsInkMuted: inkMuted
+    readonly property color fsLine:     line
+    readonly property color fsAmber:    amber
 
     // 字級（pixelSize）與行高
     readonly property int textDisplay: 44;  readonly property int lineDisplay: 56
@@ -77,10 +78,12 @@ QtObject {
     // 圓角：只有直角與正圓
     readonly property int radius0: 0;  readonly property int radiusFull: 9999
 
-    // 動畫（毫秒）；系統關掉「顯示動畫」時全部是 0
-    readonly property int motionState: ThemeController.reduceMotion ? 0 : 150
+    // 動畫（毫秒）；系統關掉「顯示動畫」時全部是 0。全螢幕中換主題的那一刻 motionState 也是 0
+    // （ThemeController.instantThemeSwitch）：共用元件的顏色不淡入，不會有一格深字配深底（T-121）
+    readonly property int motionState: ThemeController.reduceMotion || ThemeController.instantThemeSwitch ? 0 : 150
     readonly property int motionPanel: ThemeController.reduceMotion ? 0 : 400
-    readonly property int motionTint:  ThemeController.reduceMotion ? 0 : 600
+    // 全螢幕底色在換深淺色時直接換成另一版，不走過渡（DESIGN §2.3），換歌時才過渡
+    readonly property int motionTint:  ThemeController.reduceMotion || ThemeController.instantThemeSwitch ? 0 : 600
     readonly property int noticeTimeout: 6000
 
     // 唯一的陰影：琥珀光暈，只有 StatusTag 的琥珀指示點可以用

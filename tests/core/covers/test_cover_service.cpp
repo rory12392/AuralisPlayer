@@ -7,19 +7,23 @@
 #include "library/migrator.h"
 #include "library/sqlite_connection.h"
 #include "library_fixtures.h"
+#include "test_qt_app.h"
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <QBuffer>
 #include <QCryptographicHash>
+#include <QDeadlineTimer>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QImage>
+#include <QThread>
 
 #include <algorithm>
+#include <vector>
 
 #include <taglib/flacfile.h>
 #include <taglib/flacpicture.h>
@@ -284,4 +288,85 @@ TEST_CASE("AC-10-5 用的 image://cover：在背景執行緒讀圖，依 sourceS
     const auto [missing, missingError] = load(QStringLiteral("..\\..\\x"), QSize(48, 48));
     CHECK(missing.isNull());
     CHECK_FALSE(missingError.isEmpty());
+}
+
+namespace {
+
+void ensureGuiApplication() {
+    auralis::test::ensureQtApp<QGuiApplication>("auralis_core_tests");
+}
+
+qint64 cachedThumbs(const QString& dir) {
+    return QDir(dir).entryList({QStringLiteral("*.jpg")}, QDir::Files).size();
+}
+
+} // namespace
+
+// 程式結束時偶發「無法記下封面縮圖：bad parameter or other API misuse」：
+// 影像提供者由 QML 引擎擁有，可能比封面服務晚解構；它的執行緒池還在建縮圖時，
+// 封面服務已經解構、資料庫連線已關（A6）。封面服務停止後不能再有讀圖碰它。
+TEST_CASE("結束（A6）：封面服務停止後才開始的讀圖不碰資料庫與快取，直接回報錯誤") {
+    Library lib(QStringLiteral("t111-after-stop"));
+    writeFlac(lib.root + QStringLiteral("\\A\\01.flac"),
+              {{QStringLiteral("ALBUM"), QStringLiteral("A")}});
+    writeBytes(lib.root + QStringLiteral("\\A\\cover.png"), encode(Qt::red, "PNG"));
+    lib.scan();
+    const QString key = lib.trackKey(QStringLiteral("A\\01.flac"));
+    ensureGuiApplication();
+
+    std::unique_ptr<QQuickImageResponse> response;
+    {
+        CoverImageProvider provider(lib.covers);
+        lib.covers.shutdown(CoverServiceImpl::kShutdownTimeoutMs);
+        response.reset(provider.requestImageResponse(key, QSize()));
+    } // 提供者解構時等執行緒池做完
+    const std::unique_ptr<QQuickTextureFactory> texture(response->textureFactory());
+    CHECK_FALSE(response->errorString().isEmpty());
+    CHECK((texture == nullptr || texture->image().isNull()));
+    CHECK(cachedThumbs(lib.covers.cacheDir()) == 0);
+    CHECK(lib.count(QStringLiteral("SELECT count(*) FROM covers WHERE thumb_path IS NOT NULL")) ==
+          0);
+}
+
+TEST_CASE("結束（A6）：封面服務停止時等進行中的讀圖寫完縮圖紀錄，之後不再寫入") {
+    Library lib(QStringLiteral("t111-in-flight"));
+    constexpr int kAlbums = 24;
+    for (int i = 0; i < kAlbums; ++i) {
+        const QString folder = lib.root + QStringLiteral("\\%1").arg(i, 2, 10, QLatin1Char('0'));
+        writeFlac(folder + QStringLiteral("\\01.flac"),
+                  {{QStringLiteral("ALBUM"), QString::number(i)}});
+        // 大張的圖讓解碼需要一點時間，停止時才會有讀圖正在進行
+        writeBytes(folder + QStringLiteral("\\cover.jpg"),
+                   encode(QColor::fromHsv(i * 15, 200, 200), "JPG", 2400));
+    }
+    lib.scan();
+    QStringList keys;
+    for (int i = 0; i < kAlbums; ++i) {
+        keys << lib.trackKey(QStringLiteral("%1\\01.flac").arg(i, 2, 10, QLatin1Char('0')));
+    }
+    ensureGuiApplication();
+
+    const QString cache = lib.covers.cacheDir();
+    std::vector<std::unique_ptr<QQuickImageResponse>> responses;
+    qint64 recordedAtStop = 0;
+    {
+        CoverImageProvider provider(lib.covers);
+        for (const auto& key : keys) {
+            responses.emplace_back(provider.requestImageResponse(key, QSize(48, 48)));
+        }
+        // 第一張縮圖寫出來時，執行緒池還有其他讀圖在做（4 條執行緒、24 張圖）
+        const auto deadline = QDeadlineTimer(20000);
+        while (!deadline.hasExpired() && cachedThumbs(cache) == 0) {
+            QThread::msleep(1);
+        }
+        REQUIRE(cachedThumbs(cache) > 0);
+        lib.covers.shutdown(CoverServiceImpl::kShutdownTimeoutMs);
+        recordedAtStop =
+            lib.count(QStringLiteral("SELECT count(*) FROM covers WHERE thumb_path IS NOT NULL"));
+    } // 提供者解構時等執行緒池做完
+    // 停止時已經開始的都寫完了紀錄（每個快取檔都有對應的列），停止後沒有再寫
+    CHECK(recordedAtStop == cachedThumbs(cache));
+    CHECK(lib.count(QStringLiteral("SELECT count(*) FROM covers WHERE thumb_path IS NOT NULL")) ==
+          recordedAtStop);
+    CHECK(recordedAtStop < kAlbums);
 }

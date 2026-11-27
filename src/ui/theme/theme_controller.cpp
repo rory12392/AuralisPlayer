@@ -9,6 +9,9 @@
 
 #include <windows.h>
 
+#include <algorithm>
+#include <cmath>
+
 Q_LOGGING_CATEGORY(lcTheme, "auralis.ui")
 
 namespace auralis::ui {
@@ -21,6 +24,20 @@ const QString kThemeKey = QStringLiteral("ui/theme");
 const QString kSystem = QStringLiteral("system");
 const QString kVoid = QStringLiteral("void");
 const QString kPaper = QStringLiteral("paper");
+
+// 全螢幕主題（AC-17-6）
+const QString kDark = QStringLiteral("dark");
+const QString kLight = QStringLiteral("light");
+const QString kFollow = QStringLiteral("follow");
+
+// 淺色全螢幕底色（DESIGN §2.3）：沒有封面時 Paper 的 bg
+constexpr quint32 kNoCoverLight = 0xf4f2ee;
+constexpr double kMinLightness = 0.92;
+constexpr double kMaxLightSaturation = 0.30;
+
+int toByte(double value) {
+    return std::clamp(static_cast<int>(std::lround(value * 255.0)), 0, 255);
+}
 
 QString validMode(const QString& mode) {
     return mode == kVoid || mode == kPaper ? mode : kSystem;
@@ -67,19 +84,31 @@ void ThemeController::overrideMode(const QString& mode) {
     updateDark();
 }
 
-void ThemeController::setForceVoid(bool force) {
-    if (force == m_forceVoid) {
+void ThemeController::setFullscreen(bool fullscreen) {
+    if (fullscreen == m_fullscreen) {
         return;
     }
-    m_forceVoid = force;
-    emit forceVoidChanged();
+    m_fullscreen = fullscreen;
+    emit fullscreenChanged();
+    updateDark();
+}
+
+void ThemeController::setFullscreenTheme(const QString& theme) {
+    const QString valid = theme == kLight || theme == kFollow ? theme : kDark;
+    if (valid == m_fullscreenTheme) {
+        return;
+    }
+    m_fullscreenTheme = valid;
+    emit fullscreenThemeChanged();
     updateDark();
 }
 
 void ThemeController::updateDark() {
     bool dark = true;
-    if (m_forceVoid) {
-        // 全螢幕頁：一律 Void（DESIGN §2.3），使用者的 mode 不變
+    if (m_fullscreen && m_fullscreenTheme == kDark) {
+        // 全螢幕頁強制 Void（DESIGN §2.3），使用者的 mode 不變
+    } else if (m_fullscreen && m_fullscreenTheme == kLight) {
+        dark = false; // 強制 Paper
     } else if (m_mode == kPaper) {
         dark = false;
     } else if (m_mode == kSystem && m_hints) {
@@ -89,8 +118,91 @@ void ThemeController::updateDark() {
     if (dark != m_dark) {
         m_dark = dark;
         qCInfo(lcTheme) << "主題：" << (m_dark ? "Void（深色）" : "Paper（淺色）");
+        // 全螢幕中換主題：顏色過渡關掉（進全螢幕也算；離開時主視窗照舊淡入，T-94）
+        const bool instant = m_fullscreen;
+        if (instant) {
+            m_instantSwitch = true;
+            emit instantThemeSwitchChanged();
+        }
         emit darkChanged();
+        if (instant) {
+            m_instantSwitch = false;
+            emit instantThemeSwitchChanged();
+        }
     }
+}
+
+quint32 ThemeController::lightBackdropRgb(std::optional<quint32> rgb) {
+    if (!rgb) {
+        return kNoCoverLight;
+    }
+    const double r = ((*rgb >> 16) & 0xff) / 255.0;
+    const double g = ((*rgb >> 8) & 0xff) / 255.0;
+    const double b = (*rgb & 0xff) / 255.0;
+    const double hi = std::max({r, g, b});
+    const double lo = std::min({r, g, b});
+    const double d = hi - lo;
+    // RGB → HSL
+    double lightness = (hi + lo) / 2;
+    double saturation = d == 0 ? 0 : d / (1 - std::abs(2 * lightness - 1));
+    double hue = 0; // 0–6（每 60 度一段）
+    if (d > 0) {
+        if (hi == r) {
+            hue = std::fmod((g - b) / d + 6, 6);
+        } else if (hi == g) {
+            hue = (b - r) / d + 2;
+        } else {
+            hue = (r - g) / d + 4;
+        }
+    }
+    lightness = std::max(lightness, kMinLightness);
+    saturation = std::min(saturation, kMaxLightSaturation);
+    // HSL → RGB
+    const double chroma = (1 - std::abs(2 * lightness - 1)) * saturation;
+    const double x = chroma * (1 - std::abs(std::fmod(hue, 2) - 1));
+    const double m = lightness - chroma / 2;
+    double rr = 0;
+    double gg = 0;
+    double bb = 0;
+    switch (static_cast<int>(hue)) {
+    case 0:
+        rr = chroma, gg = x;
+        break;
+    case 1:
+        rr = x, gg = chroma;
+        break;
+    case 2:
+        gg = chroma, bb = x;
+        break;
+    case 3:
+        gg = x, bb = chroma;
+        break;
+    case 4:
+        rr = x, bb = chroma;
+        break;
+    default:
+        rr = chroma, bb = x;
+        break;
+    }
+    return (static_cast<quint32>(toByte(rr + m)) << 16) |
+           (static_cast<quint32>(toByte(gg + m)) << 8) | static_cast<quint32>(toByte(bb + m));
+}
+
+QColor ThemeController::lightBackdrop(const QVariant& rgb) const {
+    std::optional<quint32> input;
+    if (rgb.isValid() && !rgb.isNull()) {
+        const auto type = rgb.metaType().id();
+        if (type == QMetaType::Int || type == QMetaType::UInt || type == QMetaType::Double ||
+            type == QMetaType::LongLong || type == QMetaType::ULongLong) {
+            input = static_cast<quint32>(rgb.toLongLong()) & 0xffffff;
+        } else {
+            const QColor color = rgb.value<QColor>();
+            if (color.isValid()) {
+                input = color.rgb() & 0xffffff;
+            }
+        }
+    }
+    return QColor::fromRgb(lightBackdropRgb(input));
 }
 
 QFont ThemeController::makeFont(bool mono, int pixelSize, int weight, qreal letterSpacing,

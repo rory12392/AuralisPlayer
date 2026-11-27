@@ -3,12 +3,9 @@
 // 網路路徑只驗證「不會被查詢或開啟」：查檔的掛勾對資料夾外的路徑一律回答不存在，不會真的連線。
 #include "library/cue_sheet.h"
 #include "library/cue_tracks.h"
-#include "library/library_scanner.h"
-#include "library/migrator.h"
 #include "library/read_only_stream.h"
-#include "library/sqlite_connection.h"
 #include "library/tag_reader.h"
-#include "library_fixtures.h"
+#include "scan_fixture.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -23,32 +20,7 @@ using namespace auralis::test;
 
 namespace {
 
-struct Fixture {
-    QString dir;
-    QString root;
-    std::unique_ptr<SqliteConnection> db;
-    QList<LibraryRoot> roots;
-
-    explicit Fixture(const QString& name) {
-        dir = freshTestDir(name);
-        root = dir + QStringLiteral("\\音樂");
-        const QString dbPath = dir + QStringLiteral("\\library.db");
-        REQUIRE(migrateDatabase(dbPath).hasValue());
-        auto opened = SqliteConnection::open(dbPath);
-        REQUIRE(opened.hasValue());
-        db = std::move(opened).value();
-        LibraryWriter writer(*db);
-        roots.append({writer.ensureRoot(root), root});
-    }
-
-    ScanReport scan() { return scanLibrary(*db, roots, {}); }
-
-    qint64 count(const QString& sql) {
-        const auto rows = db->query(sql);
-        REQUIRE(rows.hasValue());
-        return rows.value().first().first().toLongLong();
-    }
-};
+using Fixture = ScanFixture;
 
 bool under(const QString& path, const QString& folder) {
     return QDir::toNativeSeparators(path).startsWith(folder + QLatin1Char('\\'),

@@ -1,12 +1,14 @@
 #pragma once
 
 #include <QAbstractNativeEventFilter>
+#include <QColor>
 #include <QFont>
 #include <QObject>
 #include <QString>
 #include <QtQml/qqmlregistration.h>
 
 #include <functional>
+#include <optional>
 
 class QQmlEngine;
 class QJSEngine;
@@ -24,9 +26,17 @@ class ThemeController final : public QObject, public QAbstractNativeEventFilter 
     /// system（跟隨系統）、void（深色）、paper（淺色）；寫入時存進 settings.ini 的 ui/theme。
     Q_PROPERTY(QString mode READ mode WRITE setMode NOTIFY modeChanged)
     Q_PROPERTY(bool dark READ dark NOTIFY darkChanged)
-    /// 全螢幕頁開著時由主視窗殼設成 true（T-94）：這段期間 dark 一律是 true（Void），
-    /// 不改 mode、不寫設定；設回 false 時照當下的 mode 與系統深淺色重算。
-    Q_PROPERTY(bool forceVoid READ forceVoid WRITE setForceVoid NOTIFY forceVoidChanged)
+    /// 全螢幕頁開著時由主視窗殼設成 true（T-94、T-121）：這段期間的有效主題照 fullscreenTheme，
+    /// 不改 mode、不寫設定；設回 false 時照當下的 mode 與系統深淺色重算。模組不要寫。
+    Q_PROPERTY(bool fullscreen READ fullscreen WRITE setFullscreen NOTIFY fullscreenChanged)
+    /// 全螢幕要的主題（AC-17-6）：dark（強制 Void，預設）、light（強制 Paper）、
+    /// follow（跟隨主程式，不強制）；不認得的值當成 dark。
+    /// 不寫設定：主視窗殼從全螢幕頁的 fullscreenTheme 屬性繫過來。
+    Q_PROPERTY(QString fullscreenTheme READ fullscreenTheme WRITE setFullscreenTheme NOTIFY
+                   fullscreenThemeChanged)
+    /// 全螢幕中換主題的那一刻是 true（發出 darkChanged 前設、之後清掉）：Theme.motionState 用它
+    /// 歸零，共用元件的 Behavior on color 不淡入，不會有一格深字配深底（DESIGN §10 第 9 項）。
+    Q_PROPERTY(bool instantThemeSwitch READ instantThemeSwitch NOTIFY instantThemeSwitchChanged)
     Q_PROPERTY(QFont sansFont READ sansFont CONSTANT)
     Q_PROPERTY(QFont monoFont READ monoFont CONSTANT)
     Q_PROPERTY(bool reduceMotion READ reduceMotion NOTIFY reduceMotionChanged)
@@ -45,8 +55,19 @@ public:
     /// 只影響這次執行、不寫進設定（--screenshot --theme 用）。
     Q_INVOKABLE void overrideMode(const QString& mode);
     bool dark() const { return m_dark; }
-    bool forceVoid() const { return m_forceVoid; }
-    void setForceVoid(bool force);
+    bool fullscreen() const { return m_fullscreen; }
+    void setFullscreen(bool fullscreen);
+    QString fullscreenTheme() const { return m_fullscreenTheme; }
+    void setFullscreenTheme(const QString& theme);
+    bool instantThemeSwitch() const { return m_instantSwitch; }
+
+    /// 淺色全螢幕的底色（AC-17-6，DESIGN §2.3）：封面主色（0xRRGGBB）轉 HSL，明度拉到 ≥ 0.92、
+    /// 飽和度壓到 ≤ 0.30（色相不變、已經夠亮的不壓暗）；沒有封面（nullopt）時是 Paper 的 bg
+    /// #f4f2ee。純計算，任何執行緒。
+    static quint32 lightBackdropRgb(std::optional<quint32> rgb);
+    /// QML 用：rgb 是顏色（「#rrggbb」或 color）或數字 0xRRGGBB；undefined、空字串、無效顏色
+    /// 當成沒有封面。
+    Q_INVOKABLE QColor lightBackdrop(const QVariant& rgb) const;
     QFont sansFont() const { return m_sans; }
     QFont monoFont() const { return m_mono; }
     bool reduceMotion() const { return m_reduceMotion; }
@@ -68,7 +89,9 @@ public:
 signals:
     void modeChanged();
     void darkChanged();
-    void forceVoidChanged();
+    void fullscreenChanged();
+    void fullscreenThemeChanged();
+    void instantThemeSwitchChanged();
     void reduceMotionChanged();
 
 private:
@@ -79,7 +102,9 @@ private:
     AnimationReader m_readAnimation;
     QString m_mode;
     bool m_dark = true;
-    bool m_forceVoid = false;
+    bool m_fullscreen = false;
+    QString m_fullscreenTheme = QStringLiteral("dark");
+    bool m_instantSwitch = false;
     bool m_reduceMotion = false;
     QFont m_sans;
     QFont m_mono;

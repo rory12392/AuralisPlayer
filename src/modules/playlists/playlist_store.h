@@ -101,6 +101,8 @@ private:
     /// 用 items 取代整個清單的項目（同一個交易內呼叫）。
     bool rewriteItems(qint64 id, const QList<PlaylistItem>& items);
     bool touch(qint64 id);
+    /// 在一個交易裡查清單，存在時再跑 edit(tx, info)；回傳是否有這個播放清單。
+    template <typename Edit> Result<bool> editExisting(qint64 id, Edit&& edit);
 
     ModuleDatabase& m_db;
 };

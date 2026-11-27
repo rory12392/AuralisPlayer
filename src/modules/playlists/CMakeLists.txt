@@ -34,6 +34,7 @@ qt_add_qml_module(auralis_mod_playlists_qml
         playlist_parse.cpp
         playlist_parse.h
         playlist_fpl.cpp
+        playlist_fpl_read.cpp
         playlist_fpl.h
         playlist_cue.cpp
         playlist_cue.h

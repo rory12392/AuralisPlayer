@@ -147,6 +147,19 @@ TEST_CASE("AC-02-4：裝置被別的程式佔用時回報被佔用、不當掉�
     CHECK(startsWithThenSilence(rig.device->writtenData(), data));
 }
 
+TEST_CASE("AC-02-4：之前開啟失敗過，之後成功開啟與啟動時錯誤種類清回沒有錯誤") {
+    Rig rig;
+    rig.device->initResult = AUDCLNT_E_DEVICE_IN_USE;
+    const AudioFormat format = pcm(44100, 16, 16);
+    REQUIRE_FALSE(rig.backend.open(format).hasValue());
+    REQUIRE(rig.backend.lastErrorKind() == OutputErrorKind::DeviceBusy);
+
+    rig.device->initResult = S_OK;
+    REQUIRE(rig.play(format, makeNoise(format, 4410, 8)).hasValue());
+    CHECK(rig.backend.lastErrorKind() == OutputErrorKind::Other);
+    REQUIRE(waitFinished(rig.engine));
+}
+
 TEST_CASE("AC-02-4：播放中裝置被拔除時停止取資料並回報裝置不見；接回後再按播放可以播") {
     Rig rig;
     rig.device->unplugAfterBuffers = 5;

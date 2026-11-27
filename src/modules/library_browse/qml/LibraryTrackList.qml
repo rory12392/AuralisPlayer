@@ -21,13 +21,13 @@ Item {
     property alias currentIndex: list.currentIndex
     property string accessibleName: qsTr("曲目")
     /// 全選時代表整份清單的查詢條件（TrackSelection.allQuery）
-    property alias allQuery: selection.allQuery
+    property alias allQuery: trackSelection.allQuery
     /// 清單已全部載入（TrackSelection.complete；分批載入的頁面綁上，沒載完時只有 Ctrl+A 算全選）
-    property alias complete: selection.complete
-    readonly property alias selection: selection
-    readonly property alias menu: menu
+    property alias complete: trackSelection.complete
+    readonly property alias selection: trackSelection
+    readonly property alias menu: trackMenu
     /// 狀態列左側的選取說明（頁面的 statusTextLeft）
-    readonly property string selectionText: ListActions.statusText(selection.trackCount)
+    readonly property string selectionText: ListActions.statusText(trackSelection.trackCount)
 
     signal playRequested(int row)
 
@@ -44,22 +44,28 @@ Item {
     readonly property var layout: TrackColumns.restore(catalog, LibraryColumns.saved)
     // 拖曳表頭分隔線時的欄位（放開時存進 LibraryColumns 再清掉）
     property var resizing: null
-    property var columns: resizing ?? TrackColumnCatalog.columnsOf(layout)
+    property var columns: resizing ?? TrackColumnCatalog.withSorting(TrackColumnCatalog.columnsOf(layout), sortEnabled)
+    // T-115：頁面接了排序時（所有曲目頁）位元率與加入時間的表頭可以按，按下發 sortRequested(id)，
+    // 由頁面決定新的排序；sortColumn 空字串＝預設順序
+    property bool sortEnabled: false
+    property string sortColumn
+    property bool sortAscending: true
+    signal sortRequested(string id)
     property bool showCover: TrackColumnCatalog.hasCover(layout)
 
     TrackSelection {
-        id: selection
+        id: trackSelection
         model: list.model
     }
 
     TrackMenu {
-        id: menu
+        id: trackMenu
     }
 
     readonly property var actions: ({
         list: list,
-        selection: selection,
-        menu: menu,
+        selection: trackSelection,
+        menu: trackMenu,
         player: Player,
         contain: ListView.Contain,
         rowStep: 1,
@@ -69,12 +75,15 @@ Item {
 
     // 表頭的分隔線可拖曳改欄寬（只用滑鼠，T-89）；放開時連同封面縮圖的開關一起保存
     ListHeader {
-        id: header
+        id: listHeader
         objectName: "libraryTrackHeader"
         anchors { left: parent.left; right: parent.right; top: parent.top }
         columns: view.columns
         showCover: view.showCover
         resizable: true
+        sortColumn: view.sortColumn
+        sortAscending: view.sortAscending
+        onSortRequested: id => view.sortRequested(id)
         onColumnResized: (id, width) => view.resizing = TrackColumns.resized(view.columns, id, width)
         onColumnResizeFinished: (id, width) => {
             const resized = TrackColumns.resized(view.columns, id, width)
@@ -85,7 +94,7 @@ Item {
 
     ListView {
         id: list
-        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
+        anchors { left: parent.left; right: parent.right; top: listHeader.bottom; bottom: parent.bottom }
         clip: true
         activeFocusOnTab: true
         boundsBehavior: Flickable.StopAtBounds
@@ -108,12 +117,12 @@ Item {
 
             width: ListView.view.width
             height: row.height
-            count: selection.revision >= 0 && selection.isSelected(drag.index) ? selection.trackCount : 1
-            query: drag.dragging ? selection.query() : ""
-            tracks: drag.dragging && !selection.queryOnly ? selection.tracks() : []
+            count: trackSelection.revision >= 0 && trackSelection.isSelected(drag.index) ? trackSelection.trackCount : 1
+            query: drag.dragging ? trackSelection.query() : ""
+            tracks: drag.dragging && !trackSelection.queryOnly ? trackSelection.tracks() : []
             onDraggingChanged: {
                 if (drag.dragging)
-                    selection.ensureSelected(drag.index)
+                    trackSelection.ensureSelected(drag.index)
             }
 
             TrackRow {
@@ -122,7 +131,7 @@ Item {
                 // 鍵盤焦點在清單本身（上下鍵、Enter 由清單處理），列不另外取得焦點
                 activeFocusOnTab: false
                 focusPolicy: Qt.NoFocus
-                highlighted: selection.revision >= 0 && selection.isSelected(drag.index)
+                highlighted: trackSelection.revision >= 0 && trackSelection.isSelected(drag.index)
                 columns: view.columns
                 showCover: view.showCover
                 record: drag.model

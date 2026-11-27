@@ -121,6 +121,8 @@ Result<std::vector<CueTrackRow>> readCueTracks(const QString& cuePath, const Loa
         tags.bits = audio.bits;
         tags.channels = audio.channels;
         tags.dsdRate = audio.dsdRate;
+        // 位元率是 FILE 指向的整軌檔整體的值（AC-10-5），不是這一段的
+        tags.bitrate = audio.bitrate;
         // 整軌檔的 ReplayGain 曲目值是整張的量測，只有專輯值對每一軌仍然成立
         tags.rgAlbumGain = audio.rgAlbumGain;
         tags.rgAlbumPeak = audio.rgAlbumPeak;

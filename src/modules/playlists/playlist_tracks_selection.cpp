@@ -58,12 +58,6 @@ void PlaylistTracks::selectAll() {
     selectionDone();
 }
 
-void PlaylistTracks::clearSelection() {
-    std::fill(m_selected.begin(), m_selected.end(), 0);
-    m_anchor = -1;
-    selectionDone();
-}
-
 void PlaylistTracks::click(int row) {
     const Qt::KeyboardModifiers modifiers = QGuiApplication::keyboardModifiers();
     if (modifiers & Qt::ControlModifier) {

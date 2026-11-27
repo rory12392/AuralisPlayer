@@ -116,6 +116,37 @@ bool SearchController::filtersActive() const {
            !m_criteria.format.isEmpty() || m_criteria.sampleRate != 0;
 }
 
+QString SearchController::sort() const {
+    switch (m_sort) {
+    case TrackSort::Bitrate:
+        return QStringLiteral("bitrate");
+    case TrackSort::AddedAt:
+        return QStringLiteral("addedAt");
+    case TrackSort::Default:
+        break;
+    }
+    return {};
+}
+
+void SearchController::sortBy(const QString& column, bool descending) {
+    TrackSort sort = TrackSort::Default;
+    if (column == QLatin1String("bitrate")) {
+        sort = TrackSort::Bitrate;
+    } else if (column == QLatin1String("addedAt")) {
+        sort = TrackSort::AddedAt;
+    }
+    if (sort == TrackSort::Default) {
+        descending = false;
+    }
+    if (sort == m_sort && descending == m_descending) {
+        return;
+    }
+    m_sort = sort;
+    m_descending = descending;
+    emit sortChanged();
+    startQuery();
+}
+
 QVariantList SearchController::yearOptions() const {
     QVariantList list;
     for (int year : m_options.years) {
@@ -169,7 +200,7 @@ void SearchController::startQuery() {
     m_queried = true;
     const quint64 generation = ++*m_generation;
     setBusy(true);
-    const auto filter = toTrackFilter(m_criteria);
+    auto filter = toTrackFilter(m_criteria);
     if (!filter) {
         // 條件互相矛盾，一定是 0 首；結果照樣在之後交回，和有查詢時的順序一致
         QMetaObject::invokeMethod(
@@ -177,6 +208,9 @@ void SearchController::startQuery() {
             Qt::QueuedConnection);
         return;
     }
+    // 排序由核心做（沒有值的排最後）；分批載入時每批用同一個排序
+    filter->sort = m_sort;
+    filter->descending = m_descending;
     schedulePage(generation, *filter, 0, kFirstPage, kPriorityFirst);
 }
 

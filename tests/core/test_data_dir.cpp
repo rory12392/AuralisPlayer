@@ -58,3 +58,14 @@ TEST_CASE("資料夾：發佈版一般安裝用 %LOCALAPPDATA%\\AuralisPlayer") 
     REQUIRE(result);
     CHECK(result.value() == QStringLiteral("D:/LocalAppData/AuralisPlayer"));
 }
+
+TEST_CASE("AC-19-4：建立 QGuiApplication 之前從命令列取 --data-dir（讀介面縮放用）") {
+    using auralis::core::dataDirArgument;
+    CHECK(dataDirArgument({QStringLiteral("--data-dir"), QStringLiteral("D:/測試 資料")}) ==
+          QStringLiteral("D:/測試 資料"));
+    CHECK(dataDirArgument({QStringLiteral("--page"), QStringLiteral("settings"),
+                           QStringLiteral("--data-dir=E:/x")}) == QStringLiteral("E:/x"));
+    CHECK(dataDirArgument({QStringLiteral("song.flac")}).isEmpty());
+    // 選項在最後、沒有值時當作沒給（之後的命令列解析會報錯）
+    CHECK(dataDirArgument({QStringLiteral("--data-dir")}).isEmpty());
+}

@@ -29,7 +29,39 @@ struct TxError {
     }
 };
 
+/// 在交易裡跑 work(tx)：交易裡記下的錯誤優先，其次是交易本身的錯誤；都沒有時回傳 nullopt。
+template <typename Work> std::optional<Error> runTransaction(ModuleDatabase& db, Work&& work) {
+    TxError tx;
+    const auto done = db.transaction([&] { return work(tx); });
+    if (tx.error) {
+        return tx.error;
+    }
+    if (!done) {
+        return done.error();
+    }
+    return std::nullopt;
+}
+
 } // namespace
+
+template <typename Edit> Result<bool> PlaylistStore::editExisting(qint64 id, Edit&& edit) {
+    bool found = false;
+    const auto error = runTransaction(m_db, [&](TxError& tx) {
+        const auto info = playlist(id);
+        if (!info) {
+            return tx.fail(info.error());
+        }
+        if (!info.value()) {
+            return true;
+        }
+        found = true;
+        return edit(tx, *info.value());
+    });
+    if (error) {
+        return *error;
+    }
+    return found;
+}
 
 PlaylistStore::PlaylistStore(ModuleDatabase& db) : m_db(db) {}
 
@@ -88,9 +120,8 @@ Result<qint64> PlaylistStore::create(const QString& name) {
     if (trimmed.isEmpty()) {
         return nameError();
     }
-    TxError tx;
     qint64 id = 0;
-    const auto done = m_db.transaction([&] {
+    const auto error = runTransaction(m_db, [&](TxError& tx) {
         const auto order =
             m_db.query(QStringLiteral("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM playlists"));
         if (!order) {
@@ -111,11 +142,8 @@ Result<qint64> PlaylistStore::create(const QString& name) {
         id = last.value().first().first().toLongLong();
         return true;
     });
-    if (tx.error) {
-        return *tx.error;
-    }
-    if (!done) {
-        return done.error();
+    if (error) {
+        return *error;
     }
     return id;
 }
@@ -126,9 +154,8 @@ Result<PlaylistInfo> PlaylistStore::createImported(const QString& name,
     if (trimmed.isEmpty()) {
         return nameError();
     }
-    TxError tx;
     PlaylistInfo created;
-    const auto done = m_db.transaction([&] {
+    const auto error = runTransaction(m_db, [&](TxError& tx) {
         const auto names = m_db.query(QStringLiteral("SELECT name FROM playlists"));
         if (!names) {
             return tx.fail(names.error());
@@ -166,11 +193,8 @@ Result<PlaylistInfo> PlaylistStore::createImported(const QString& name,
         }
         return true;
     });
-    if (tx.error) {
-        return *tx.error;
-    }
-    if (!done) {
-        return done.error();
+    if (error) {
+        return *error;
     }
     return created;
 }
@@ -190,9 +214,8 @@ Result<bool> PlaylistStore::rename(qint64 id, const QString& name) {
 }
 
 Result<bool> PlaylistStore::remove(qint64 id) {
-    TxError tx;
     bool found = false;
-    const auto done = m_db.transaction([&] {
+    const auto error = runTransaction(m_db, [&](TxError& tx) {
         // 外鍵的 cascade 也會刪項目；這裡明寫，不依賴連線有沒有開外鍵
         const auto items =
             m_db.execute(QStringLiteral("DELETE FROM playlist_items WHERE playlist_id = ?"), {id});
@@ -207,11 +230,8 @@ Result<bool> PlaylistStore::remove(qint64 id) {
         found = removed.value() > 0;
         return true;
     });
-    if (tx.error) {
-        return *tx.error;
-    }
-    if (!done) {
-        return done.error();
+    if (error) {
+        return *error;
     }
     return found;
 }
@@ -241,18 +261,8 @@ bool PlaylistStore::rewriteItems(qint64 id, const QList<PlaylistItem>& items) {
 }
 
 Result<bool> PlaylistStore::addTracks(qint64 id, const QList<TrackRef>& tracks, int insertAt) {
-    TxError tx;
-    bool found = false;
-    const auto done = m_db.transaction([&] {
-        const auto info = playlist(id);
-        if (!info) {
-            return tx.fail(info.error());
-        }
-        if (!info.value()) {
-            return true;
-        }
-        found = true;
-        const int count = info.value()->trackCount;
+    return editExisting(id, [&](TxError& tx, const PlaylistInfo& info) {
+        const int count = info.trackCount;
         if (insertAt < 0 || insertAt >= count) {
             // 加在最後：只寫新的列
             int pos = count;
@@ -285,27 +295,10 @@ Result<bool> PlaylistStore::addTracks(qint64 id, const QList<TrackRef>& tracks, 
         }
         return touch(id) || tx.fail(Error{QStringLiteral("更新播放清單時間失敗")});
     });
-    if (tx.error) {
-        return *tx.error;
-    }
-    if (!done) {
-        return done.error();
-    }
-    return found;
 }
 
 Result<bool> PlaylistStore::removeItems(qint64 id, const QList<int>& positions) {
-    TxError tx;
-    bool found = false;
-    const auto done = m_db.transaction([&] {
-        const auto info = playlist(id);
-        if (!info) {
-            return tx.fail(info.error());
-        }
-        if (!info.value()) {
-            return true;
-        }
-        found = true;
+    return editExisting(id, [&](TxError& tx, const PlaylistInfo&) {
         auto current = items(id);
         if (!current) {
             return tx.fail(current.error());
@@ -325,27 +318,10 @@ Result<bool> PlaylistStore::removeItems(qint64 id, const QList<int>& positions) 
         }
         return touch(id) || tx.fail(Error{QStringLiteral("更新播放清單時間失敗")});
     });
-    if (tx.error) {
-        return *tx.error;
-    }
-    if (!done) {
-        return done.error();
-    }
-    return found;
 }
 
 Result<bool> PlaylistStore::reorder(qint64 id, const QList<int>& order) {
-    TxError tx;
-    bool found = false;
-    const auto done = m_db.transaction([&] {
-        const auto info = playlist(id);
-        if (!info) {
-            return tx.fail(info.error());
-        }
-        if (!info.value()) {
-            return true;
-        }
-        found = true;
+    return editExisting(id, [&](TxError& tx, const PlaylistInfo&) {
         auto current = items(id);
         if (!current) {
             return tx.fail(current.error());
@@ -370,13 +346,6 @@ Result<bool> PlaylistStore::reorder(qint64 id, const QList<int>& order) {
         }
         return touch(id) || tx.fail(Error{QStringLiteral("更新播放清單時間失敗")});
     });
-    if (tx.error) {
-        return *tx.error;
-    }
-    if (!done) {
-        return done.error();
-    }
-    return found;
 }
 
 } // namespace auralis::mod::pl

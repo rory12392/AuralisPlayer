@@ -6,11 +6,13 @@
 #include "playlist_import.h"
 #include "playlist_store.h"
 #include "playlists_controller.h"
+#include "test_qt_app.h"
 
 #include "fake_playback_service.h"
 
 #include <auralis/dialogs.h>
 #include <auralis/job_runner.h>
+#include <auralis/library_query.h>
 #include <auralis/navigator.h>
 #include <auralis/notifier.h>
 
@@ -63,13 +65,32 @@ public:
     QStringList opened;
 };
 
-inline void ensureImportApp() {
-    if (QCoreApplication::instance() == nullptr) {
-        static int argc = 1;
-        static char name[] = "auralis_pl_tests";
-        static char* argv[] = {name, nullptr};
-        static QCoreApplication app(argc, argv);
+/// 音樂庫替身的共用部分：refs 是音樂庫裡的曲目，tracks() 交出它們並記錄呼叫次數；其他查詢都是空的。
+class RefsLibrary : public LibraryQuery {
+public:
+    QList<TrackRef> refs;
+    mutable int tracksCalls = 0;
+    Result<std::optional<TrackInfo>> findByIdentity(const QString&, quint32) const override {
+        return std::optional<TrackInfo>();
     }
+    Result<QList<TrackInfo>> tracks(const TrackFilter&) const override {
+        ++tracksCalls;
+        QList<TrackInfo> result;
+        for (const TrackRef& ref : refs) {
+            TrackInfo info;
+            info.ref = ref;
+            result.append(info);
+        }
+        return result;
+    }
+    Result<QList<AlbumInfo>> albums() const override { return QList<AlbumInfo>(); }
+    Result<QStringList> artists() const override { return QStringList(); }
+    Result<QList<FolderInfo>> folders(qint64) const override { return QList<FolderInfo>(); }
+    Result<QString> readEmbeddedLyrics(const TrackRef&) const override { return QString(); }
+};
+
+inline void ensureImportApp() {
+    ensureQtApp("auralis_pl_tests");
 }
 
 /// 播放清單樣本（唯讀，T-100）：檔名相同的兩組。

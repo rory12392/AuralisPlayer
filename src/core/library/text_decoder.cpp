@@ -1,9 +1,7 @@
 #include <auralis/text_decoder.h>
 
-#include "library/file_enumerator.h"
+#include "covers/cover_image.h"
 
-#include <QDir>
-#include <QFileInfo>
 #include <QStringDecoder>
 
 #include <uchardet/uchardet.h>
@@ -139,39 +137,13 @@ DecodedText TextDecoder::decode(const QByteArray& bytes) {
 
 Result<DecodedText> TextDecoder::decodeFile(const QString& path) {
     // 唯讀、共用讀寫刪除：使用者的 .cue、.lrc、播放清單一律不改（AC-08-4）
-    // \\?\ 長路徑不做正規化，所以先轉成絕對路徑與 Windows 分隔符（呼叫端可能給 Qt 風格的 /）
-    const std::wstring longPath =
-        core::toLongPath(QDir::toNativeSeparators(QFileInfo(path).absoluteFilePath()));
-    HANDLE file = CreateFileW(longPath.c_str(), GENERIC_READ,
-                              FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE) {
-        return hresultError(HRESULT_FROM_WIN32(GetLastError()), "CreateFileW");
+    const auto bytes =
+        core::readUserFile(path, kMaxFileBytes, QStringLiteral("文字檔太大（%1 位元組）"),
+                           QStringLiteral("TextDecoder::decodeFile"));
+    if (!bytes) {
+        return bytes.error();
     }
-    const std::unique_ptr<void, decltype(&CloseHandle)> guard(file, &CloseHandle);
-    LARGE_INTEGER size{};
-    if (!GetFileSizeEx(file, &size)) {
-        return hresultError(HRESULT_FROM_WIN32(GetLastError()), "GetFileSizeEx");
-    }
-    if (size.QuadPart > kMaxFileBytes) {
-        return Error{QStringLiteral("文字檔太大（%1 位元組）").arg(size.QuadPart), 0,
-                     QStringLiteral("TextDecoder::decodeFile")};
-    }
-    QByteArray bytes(static_cast<qsizetype>(size.QuadPart), Qt::Uninitialized);
-    qsizetype done = 0;
-    while (done < bytes.size()) {
-        DWORD read = 0;
-        if (!ReadFile(file, bytes.data() + done, static_cast<DWORD>(bytes.size() - done), &read,
-                      nullptr)) {
-            return hresultError(HRESULT_FROM_WIN32(GetLastError()), "ReadFile");
-        }
-        if (read == 0) {
-            break; // 讀的期間檔案變短
-        }
-        done += read;
-    }
-    bytes.truncate(done);
-    return decode(bytes);
+    return decode(bytes.value());
 }
 
 } // namespace auralis

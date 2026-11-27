@@ -282,6 +282,10 @@ Item {
             verify(error.text.length > 0)
             verify(retry.visible)
             pageProbe.setTracksFail(false)
+            // P-51：錯誤與「重試」剛變成可見時，篩選列的 Row 要到下一次 polish 才排位置（重試還在 x=0），
+            // 這時點下去會點到「篩選」標籤；等排好再點
+            verify(waitForPolish(retry.parent, 5000))
+            verify(retry.x > 0)
             mouseClick(retry)
             tryVerify(() => !error.visible && !retry.visible, 5000)
             verify(LibrarySearch.optionsLoaded)

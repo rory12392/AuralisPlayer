@@ -48,6 +48,13 @@ class LyricsView : public QObject {
     /// QML 不寫色碼）；沒有封面、取色失敗或沒有接底色時 #050505。換歌時結果回來才變（T-69）。
     /// 值是「#rrggbb」字串（本模組不連結 Qt Gui；QML 的 color 屬性直接接受）。
     Q_PROPERTY(QString fullscreenBackdrop READ fullscreenBackdrop NOTIFY fullscreenBackdropChanged)
+    /// 淺色全螢幕的底色來源（AC-17-6）：封面主色原值「#rrggbb」（沒壓暗），沒有封面時空字串；
+    /// QML 交給 ThemeController.lightBackdrop 提亮。和 fullscreenBackdrop 一起通知。
+    Q_PROPERTY(
+        QString fullscreenCoverColor READ fullscreenCoverColor NOTIFY fullscreenBackdropChanged)
+    /// 設定 LYR/fullscreenTheme（AC-17-6）：dark（預設）、light、follow；設定值無效時 dark。
+    /// 全螢幕頁把它宣告成自己的 fullscreenTheme，核心照它套用主題。
+    Q_PROPERTY(QString fullscreenTheme READ fullscreenTheme NOTIFY fullscreenThemeChanged)
 
 public:
     /// settings 可以是 nullptr（測試），這時線上抓取視為開啟。switches 是 LRCLIB 那段讀的
@@ -63,6 +70,11 @@ public:
     bool saveLrc() const { return m_saveLrc; }
     int currentLine() const { return m_currentLine; }
     QString fullscreenBackdrop() const;
+    QString fullscreenCoverColor() const;
+    QString fullscreenTheme() const { return m_fullscreenTheme; }
+    /// 全螢幕頁的 T 鍵與切換鈕、設定頁（S-15、S-16）：寫進 LYR/fullscreenTheme，立刻生效；
+    /// 不認得的值存成 "dark"。
+    Q_INVOKABLE void setFullscreenTheme(const QString& theme);
     /// 全螢幕底色的來源（模組在 start() 接；可以是 nullptr）。底色變了發出
     /// fullscreenBackdropChanged。
     void setBackdrop(BackdropLoader* backdrop);
@@ -84,6 +96,7 @@ signals:
     void changed();
     void currentLineChanged();
     void fullscreenBackdropChanged();
+    void fullscreenThemeChanged();
 
 private:
     /// 依載入器目前的結果重設內容。
@@ -105,6 +118,7 @@ private:
     bool m_onlineEnabled = true;
     bool m_saveLrc = false;
     int m_currentLine = -1;
+    QString m_fullscreenTheme = QStringLiteral("dark");
 };
 
 } // namespace auralis::mod::lyr

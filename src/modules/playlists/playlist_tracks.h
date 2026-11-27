@@ -120,7 +120,6 @@ public:
     Q_INVOKABLE void toggle(int row);
     Q_INVOKABLE void extend(int row);
     Q_INVOKABLE void selectAll();
-    Q_INVOKABLE void clearSelection();
     /// 滑鼠點擊：依目前按住的鍵（Ctrl → toggle、Shift → extend、都沒有 → select）。
     Q_INVOKABLE void click(int row);
     /// 右鍵與拖曳：這列沒被選取時改成只選它。

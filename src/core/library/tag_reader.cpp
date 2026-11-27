@@ -1,6 +1,7 @@
 #include "library/tag_reader.h"
 
 #include "library/read_only_stream.h"
+#include "library/stream_bitrate.h"
 
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -215,6 +216,7 @@ Result<TagData> readTags(const QString& path) {
     if (ref.value().isNull()) {
         if (!taglibKnows(suffix)) {
             data.codec = suffix.toUpper();
+            data.bitrate = audioFileBitrateKbps(path, data.codec, stream.length(), 0);
             return data;
         }
         return Error{QStringLiteral("無法解析檔案（可能已損毀或不是這個格式）"), 0,
@@ -249,6 +251,7 @@ Result<TagData> readTags(const QString& path) {
     } else {
         data.codec = suffix.toUpper();
     }
+    data.bitrate = audioFileBitrateKbps(path, data.codec, stream.length(), data.durationMs);
     return data;
 }
 

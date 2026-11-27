@@ -45,14 +45,17 @@ public:
 
     /// 目前的底色（「#rrggbb」）。
     QString color() const { return m_color; }
+    /// 目前的封面主色原值（「#rrggbb」，沒壓暗；淺色全螢幕由核心提亮，AC-17-6）；沒有封面、
+    /// 讀不到或沒有在聽的曲目時空字串。和 color() 同時更新。
+    QString coverColor() const { return m_coverColor; }
 
 signals:
-    /// color() 改變。
+    /// color() 或 coverColor() 改變。
     void changed();
 
 private:
     void deliver(quint64 generation, std::optional<quint32> rgb);
-    void setColor(const QString& color);
+    void setColor(std::optional<quint32> rgb);
 
     struct Mailbox;
     JobRunner& m_jobs;
@@ -61,6 +64,7 @@ private:
     std::shared_ptr<Mailbox> m_mailbox;
     std::shared_ptr<JobGate> m_gate;
     QString m_color;
+    QString m_coverColor;
     quint64 m_generation = 0;
     quint64 m_job = 0;
 };

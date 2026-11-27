@@ -19,10 +19,14 @@ Result<bool> PlaybackServiceImpl::switchOutput(const OutputChoice& choice) {
         return Error{tr("找不到這個輸出裝置"), 0,
                      QStringLiteral("PlaybackServiceImpl::switchOutput")};
     }
-    const bool resume = m_state == State::Playing;
-    const qint64 at = m_positionMs;
-    const auto current = m_queue.current();
+    // 還在開檔時以要開的那首與位置為準
+    const bool resume = m_state == State::Playing || m_pendingEntry.has_value();
+    const qint64 at = m_pendingEntry ? m_pendingOffset : m_positionMs;
+    const auto current = m_pendingEntry ? m_pendingEntry : m_queue.current();
     stopEngine();
+    // 換輸出要同步回報成敗（設定頁與輸出面板照回傳值顯示），而且背景執行緒停好才能換後端，
+    // 所以這裡等開始播放做完（換輸出是少數操作，開檔的等待留在這裡）
+    waitForStart();
     auto previous = std::move(m_backend);
     const OutputChoice previousChoice = m_choice;
     m_backend = std::move(created).value();
@@ -35,7 +39,9 @@ Result<bool> PlaybackServiceImpl::switchOutput(const OutputChoice& choice) {
         updateOutputStatus();
         return true;
     }
-    if (startEntry(current, at) || m_outputError.isEmpty() || !previous) {
+    startEntry(current, at);
+    waitForStart();
+    if (m_state == State::Playing || m_outputError.isEmpty() || !previous) {
         // 成功；或新裝置不支援這些曲目的格式而照 AC-02-2 跳過（不是裝置錯誤）
         return true;
     }
@@ -46,6 +52,7 @@ Result<bool> PlaybackServiceImpl::switchOutput(const OutputChoice& choice) {
     m_outputError.clear();
     emit outputPathChanging(previousChoice.backend);
     startEntry(current, at);
+    waitForStart();
     return Error{failure, 0, QStringLiteral("PlaybackServiceImpl::switchOutput")};
 }
 

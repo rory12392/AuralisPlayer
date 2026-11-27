@@ -90,10 +90,7 @@ public:
                 m_report.failures.append(failure);
                 ++m_report.failed;
             }
-            for (const auto& link : scans.back().listing.skippedLinks) {
-                m_report.failures.append(link);
-                ++m_report.failed;
-            }
+            m_report.skippedLinks.append(scans.back().listing.skippedLinks);
             if (scans.back().listing.cancelled) {
                 m_report.cancelled = true;
                 break;

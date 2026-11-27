@@ -324,8 +324,8 @@ TEST_CASE(
     REQUIRE(window != nullptr);
 
     auto dropAt = [window](const QPoint& point, const QMimeData& mime) {
-        QDragEnterEvent enter(point, Qt::CopyAction | Qt::MoveAction, &mime, Qt::LeftButton,
-                              Qt::NoModifier);
+        QDragEnterEvent enter(QPointF(point), Qt::CopyAction | Qt::MoveAction, &mime,
+                              Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(window, &enter);
         QDropEvent drop(point, Qt::CopyAction | Qt::MoveAction, &mime, Qt::LeftButton,
                         Qt::NoModifier);

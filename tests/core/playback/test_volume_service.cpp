@@ -13,8 +13,6 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-#include <map>
-
 using auralis::AudioFormat;
 using auralis::DsdFormat;
 using auralis::OutputStatus;
@@ -29,19 +27,12 @@ using auralis::core::SourceRegistryImpl;
 using auralis::core::VolumeSettings;
 using auralis::test::fastCapture;
 using auralis::test::makeNoise;
-using auralis::test::MemorySource;
 using State = PlaybackService::State;
 
-namespace {
+using auralis::test::cd;
+using auralis::test::MemoryFactory;
 
-AudioFormat cd() {
-    AudioFormat format;
-    format.rate = 44100;
-    format.bits = 16;
-    format.container = 16;
-    format.channels = 2;
-    return format;
-}
+namespace {
 
 AudioFormat dsd64() {
     AudioFormat format;
@@ -51,18 +42,6 @@ AudioFormat dsd64() {
     format.channels = 2;
     return format;
 }
-
-/// 副檔名 .mem 的音源，格式由測試指定。
-class MemoryFactory final : public auralis::ISourceFactory {
-public:
-    QString name() const override { return QStringLiteral("記憶體"); }
-    QStringList extensions() const override { return {QStringLiteral("mem")}; }
-    auralis::Result<std::unique_ptr<auralis::IAudioSource>> open(const QString& path) override {
-        const auto& [format, data] = tracks.at(path);
-        return std::unique_ptr<auralis::IAudioSource>(std::make_unique<MemorySource>(format, data));
-    }
-    std::map<QString, std::pair<AudioFormat, QByteArray>> tracks;
-};
 
 /// 永遠作用的處理器，模擬 ReplayGain 已套用。
 class FakeReplayGain final : public auralis::IProcessor {
@@ -167,6 +146,7 @@ TEST_CASE(
     Fixture f;
     const TrackRef a = f.add("a", 3.0);
     f.service.playFrom({a}, 0);
+    f.service.waitForStart();
     REQUIRE(f.service.state() == State::Playing);
     CHECK(f.service.outputStatus().bitPerfect);
 
@@ -192,6 +172,7 @@ TEST_CASE(
     f.service.setVolume(40);
     CHECK(f.service.outputStatus().reasons == QStringList{QStringLiteral("音量 40%")});
     f.service.play();
+    f.service.waitForStart();
     REQUIRE(f.service.state() == State::Playing);
     CHECK(f.service.outputStatus().reasons == QStringList{QStringLiteral("音量 40%")});
 
@@ -207,6 +188,7 @@ TEST_CASE("AC-02-3：音量和其他處理（ReplayGain）可以同時列出，�
     const TrackRef a = f.add("a", 2.0);
     f.service.setVolume(70);
     f.service.playFrom({a}, 0);
+    f.service.waitForStart();
     REQUIRE(f.service.state() == State::Playing);
     const OutputStatus status = f.service.outputStatus();
     CHECK_FALSE(status.bitPerfect);
@@ -226,6 +208,7 @@ TEST_CASE("AC-02-7：DSD 直通播放中音量不可用並說明原因，換回 
     QSignalSpy available(&f.service, &PlaybackService::volumeAvailableChanged);
 
     f.service.playFrom({dsd, pcm}, 0);
+    f.service.waitForStart();
     REQUIRE(f.service.state() == State::Playing);
     CHECK_FALSE(f.service.volumeAvailable());
     CHECK(f.service.volumeUnavailableReason() == QStringLiteral("DSD 直通時無法調整音量"));
@@ -245,12 +228,14 @@ TEST_CASE("AC-02-7：DSD 直通播放中音量不可用並說明原因，換回 
 
     // 換到 PCM 曲目：恢復可用，記下的音量開始作用
     f.service.playAt(1);
+    f.service.waitForStart();
     REQUIRE(f.service.state() == State::Playing);
     CHECK(f.service.volumeAvailable());
     CHECK(f.service.volumeUnavailableReason().isEmpty());
     CHECK(f.service.outputStatus().reasons == QStringList{QStringLiteral("音量 30%")});
 
     f.service.playAt(0);
+    f.service.waitForStart();
     CHECK_FALSE(f.service.volumeAvailable());
     f.service.stop();
     CHECK(f.service.volumeAvailable());

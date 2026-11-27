@@ -33,6 +33,8 @@ TEST_CASE("圖示：每個 SVG 只用直線指令與正圓弧、不帶顏色、�
     const QStringList files =
         QDir(kIconSourceDir).entryList({QStringLiteral("*.svg")}, QDir::Files);
     REQUIRE(files.size() >= 22);
+    // M-07（T-121）：全螢幕的深淺色切換鈕（DESIGN §6.2）
+    CHECK(files.contains(QStringLiteral("contrast.svg")));
     // 只允許 M、L、H、V、Z（直線）與 A（弧，半徑要相等）；不允許曲線 C、Q、S、T
     const QRegularExpression forbidden(QStringLiteral("[CcQqSsTt]"));
     const QRegularExpression arc(QStringLiteral("A\\s*([\\d.]+)\\s+([\\d.]+)"));

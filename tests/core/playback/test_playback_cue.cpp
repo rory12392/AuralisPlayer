@@ -27,9 +27,12 @@ namespace {
 /// 處理事件並輪詢服務，直到 condition 成立或逾時。
 bool drive(PlaybackServiceImpl& service, const std::function<bool()>& condition) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    // 開始播放在背景開檔（T-113）：先等它做完，條件才不會在開始之前就成立
+    service.waitForStart();
     while (!condition() && std::chrono::steady_clock::now() < deadline) {
         QCoreApplication::processEvents();
         service.poll();
+        service.waitForStart();
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     QCoreApplication::processEvents();
@@ -69,6 +72,7 @@ TEST_CASE("AC-07-2：佇列裡相鄰的兩首 CUE 曲目經 PlaybackService 播�
     service.setOutputBackend(std::move(capture));
 
     service.playFrom({TrackRef{cuePath, 1}, TrackRef{cuePath, 2}}, 0);
+    service.waitForStart();
     REQUIRE(service.state() == State::Playing);
     CHECK(service.queue().size() == 2);
     CHECK_FALSE(service.queue().at(0).unplayable);
@@ -118,6 +122,7 @@ TEST_CASE("AC-11-2：192 kHz CUE 曲目跳轉，位置只往前，送出的是�
 
     // 第 2 軌是 150–262 個 CD 影格（約 1.49 秒）
     service.playFrom({TrackRef{cuePath, 2}}, 0);
+    service.waitForStart();
     REQUIRE(service.state() == State::Playing);
     REQUIRE(drive(service, [&service] { return service.positionMs() > 100; }));
     positions.clear();

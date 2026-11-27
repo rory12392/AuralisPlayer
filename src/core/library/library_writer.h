@@ -22,9 +22,12 @@ struct ScanReport {
     int added = 0;
     int updated = 0;
     int removed = 0;
-    int failed = 0; ///< 讀不到的檔案與資料夾
+    int failed = 0; ///< 讀不到的檔案與資料夾（不含跳過的連結）
     bool cancelled = false;
     QList<ScanFailure> failures;
+    /// 跳過的符號連結與 junction：是刻意不跟隨，不是讀不到，所以不算進 failed、不放進 failures
+    /// （details_json 的 skippedLinks）。
+    QList<ScanFailure> skippedLinks;
 };
 
 /// 音樂庫已有的檔案（增量比對用）。

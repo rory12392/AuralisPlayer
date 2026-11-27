@@ -30,14 +30,27 @@ PlaybackServiceImpl::PlaybackServiceImpl(SourceRegistryImpl& sources, OutputRegi
       m_engine(processors) {
     m_timer.setInterval(kPollMs);
     connect(&m_timer, &QTimer::timeout, this, &PlaybackServiceImpl::poll);
+    m_starter = std::thread([this] { starterLoop(); });
 }
 
 PlaybackServiceImpl::~PlaybackServiceImpl() {
+    {
+        // 關程式：還沒開始的要求丟掉，做到一半的在下一個檢查點放棄；
+        // 開檔本身不能中斷，所以最多等一次開檔
+        const std::lock_guard lock(m_startMutex);
+        m_quit = true;
+        m_job.reset();
+        ++m_startSeq;
+    }
+    m_startWake.notify_all();
+    m_starter.join();
     m_engine.stop();
 }
 
 void PlaybackServiceImpl::setOutputBackend(std::unique_ptr<IOutputBackend> backend) {
     stop();
+    // 背景執行緒可能還拿著原本的後端：等它停好才換
+    waitForStart();
     m_backend = std::move(backend);
     m_choice = {};
 }
@@ -72,60 +85,86 @@ void PlaybackServiceImpl::markUnplayable(const QueueEntry& entry, const QString&
     emit trackSkipped(entry.track, reason);
 }
 
-bool PlaybackServiceImpl::startEntry(std::optional<QueueEntry> entry, qint64 offsetMs) {
-    // 先停：之後換 DSD 包裝器、開新音源時不會和解碼執行緒同時碰引擎
-    stopEngine();
-    for (qsizetype tries = m_queue.entries().size(); entry && tries >= 0; --tries) {
-        auto opened = openTrack(*entry, offsetMs);
-        if (!opened) {
-            markUnplayable(*entry, opened.error().message);
-            entry = m_queue.nextAfter(entry->id, true);
-            offsetMs = 0;
-            continue;
-        }
-        IOutputBackend* backend = ensureBackend();
-        if (!backend) {
-            stopWithError(tr("沒有可用的輸出裝置"));
-            return false;
-        }
-        const quint64 token = opened.value().token;
-        m_engine.setDsdSink(m_outputs.dsdSink());
-        m_engine.setNextTrackProvider(this);
-        auto started = m_engine.play(std::move(opened).value(), *backend);
-        if (!started) {
-            if (backend->lastErrorKind() == OutputErrorKind::FormatNotSupported ||
-                m_engine.dsdPathRejected()) {
-                // 裝置不支援這個格式，或 DSD 包裝器和這個輸出路徑不相容：跳過這首（AC-02-2）
-                markUnplayable(*entry, started.error().message);
-                entry = m_queue.nextAfter(entry->id, true);
-                offsetMs = 0;
-                continue;
-            }
-            stopWithError(deviceErrorText(backend->lastErrorKind(), started.error()));
-            return false;
-        }
-        const TokenInfo info = tokenInfo(token).value_or(TokenInfo{});
-        m_token = token;
-        m_sourceRate = info.sourceRate;
-        m_durationMs = info.durationMs;
-        m_outputRate = framesPerSecond(started.value().outputFormat);
-        m_outputError.clear();
-        m_queue.setCurrent(entry->id);
-        setState(State::Playing);
-        emit trackChanged();
+void PlaybackServiceImpl::startEntry(std::optional<QueueEntry> entry, qint64 offsetMs) {
+    m_startTries = m_queue.entries().size();
+    requestStart(std::move(entry), offsetMs);
+}
+
+void PlaybackServiceImpl::requestStart(std::optional<QueueEntry> entry, qint64 offsetMs) {
+    m_timer.stop();
+    if (!entry || m_startTries < 0) {
+        stop();
         emit queueChanged();
-        setPosition(offsetMs);
-        updateOutputStatus();
-        m_timer.start();
-        return true;
+        return;
     }
-    stop();
+    // 選預設輸出（會發 outputPathChanging，模組在這裡換 DSD 包裝器）留在 UI 執行緒，之後才讀包裝器
+    IOutputBackend* backend = ensureBackend();
+    if (!backend) {
+        stopWithError(tr("沒有可用的輸出裝置"));
+        return;
+    }
+    m_pendingEntry = entry;
+    m_pendingOffset = offsetMs;
+    StartJob job;
+    job.entry = std::move(entry);
+    job.offsetMs = offsetMs;
+    job.backend = backend;
+    job.dsdSink = m_outputs.dsdSink();
+    postJob(std::move(job));
+}
+
+void PlaybackServiceImpl::skipAndContinue(const QueueEntry& entry, const QString& reason) {
+    markUnplayable(entry, reason);
+    --m_startTries;
+    requestStart(m_queue.nextAfter(entry.id, true), 0);
+}
+
+void PlaybackServiceImpl::finishStart(const StartResult& result) {
+    if (result.seq != m_startSeq.load()) {
+        return; // 之後又送了要求：這個結果作廢，引擎由後來的要求處理
+    }
+    m_starting = false;
+    m_pendingEntry.reset();
+    if (!result.entry) {
+        return; // 只停止
+    }
+    const QueueEntry& entry = *result.entry;
+    if (!m_queue.entry(entry.id)) {
+        // 開檔期間這首被移出佇列（清空佇列時它還不是目前曲目）
+        stop();
+        emit queueChanged();
+        return;
+    }
+    if (result.openError) {
+        skipAndContinue(entry, result.openError->message);
+        return;
+    }
+    if (result.startError) {
+        if (result.errorKind == OutputErrorKind::FormatNotSupported || result.dsdRejected) {
+            // 裝置不支援這個格式，或 DSD 包裝器和這個輸出路徑不相容：跳過這首（AC-02-2）
+            skipAndContinue(entry, result.startError->message);
+            return;
+        }
+        stopWithError(deviceErrorText(result.errorKind, *result.startError));
+        return;
+    }
+    const TokenInfo info = tokenInfo(result.token).value_or(TokenInfo{});
+    m_token = result.token;
+    m_sourceRate = info.sourceRate;
+    m_durationMs = info.durationMs;
+    m_outputRate = framesPerSecond(result.outputFormat);
+    m_outputError.clear();
+    m_queue.setCurrent(entry.id);
+    setState(State::Playing);
+    emit trackChanged();
     emit queueChanged();
-    return false;
+    setPosition(result.offsetMs);
+    updateOutputStatus();
+    m_timer.start();
 }
 
 void PlaybackServiceImpl::poll() {
-    if (m_state != State::Playing) {
+    if (m_state != State::Playing || m_starting) {
         return;
     }
     if (const auto failure = m_engine.outputError()) {
@@ -198,6 +237,12 @@ void PlaybackServiceImpl::onFinished() {
 
 void PlaybackServiceImpl::stopEngine() {
     m_timer.stop();
+    m_pendingEntry.reset();
+    if (m_starting) {
+        // 引擎在背景執行緒手上：送一個只停止的要求，手上的開始也在下一個檢查點放棄，UI 不等
+        postJob(StartJob{});
+        return;
+    }
     m_engine.stop();
 }
 
@@ -225,7 +270,7 @@ void PlaybackServiceImpl::updateOutputStatus() {
     OutputStatus status;
     bool hasVolume = false;
     bool volumeAvailable = true;
-    if (m_engine.isPlaying()) {
+    if (!m_starting && m_engine.isPlaying()) {
         const PlaybackEngine::Status engine = m_engine.status();
         status.backend = engine.backend;
         status.sourceFormat = engine.sourceFormat;

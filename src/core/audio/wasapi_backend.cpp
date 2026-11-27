@@ -61,6 +61,8 @@ QString WasapiBackend::signalChange() const {
 Result<AudioFormat> WasapiBackend::open(const AudioFormat& requested) {
     close();
     m_failure.store(0, std::memory_order_relaxed);
+    // 之前的開啟或啟動失敗不能留到這次：成功後之後的解碼失敗才會照常跳過該曲（AC-02-2）
+    m_lastErrorKind = OutputErrorKind::Other;
     if (!requested.isValid() || requested.rate == 0) {
         m_lastErrorKind = OutputErrorKind::FormatNotSupported;
         return Error{QStringLiteral("WASAPI 只接受 PCM 格式"), 0,
@@ -187,6 +189,7 @@ Result<bool> WasapiBackend::prepareStream(const AudioFormat& requested, const Au
 }
 
 Result<bool> WasapiBackend::start(IRenderSource& source) {
+    m_lastErrorKind = OutputErrorKind::Other;
     auto started = startStream(source);
     if (!started) {
         m_lastErrorKind = classifyHresult(started.error().hresult);

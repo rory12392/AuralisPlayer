@@ -3,6 +3,7 @@
 #include "pl_test_helpers.h"
 #include "playlist_store.h"
 #include "playlists_controller.h"
+#include "test_qt_app.h"
 
 #include <auralis/dialogs.h>
 #include <auralis/job_runner.h>
@@ -55,12 +56,7 @@ QString payload(int count) {
 
 /// 背景工作的結果排回主執行緒的事件迴圈，所以要有 QCoreApplication（整個測試程式一個）。
 void ensureApp() {
-    if (QCoreApplication::instance() == nullptr) {
-        static int argc = 1;
-        static char name[] = "auralis_pl_tests";
-        static char* argv[] = {name, nullptr};
-        static QCoreApplication app(argc, argv);
-    }
+    auralis::test::ensureQtApp("auralis_pl_tests");
 }
 
 struct Fixture {

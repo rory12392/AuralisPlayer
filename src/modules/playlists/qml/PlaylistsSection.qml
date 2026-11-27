@@ -120,11 +120,11 @@ Item {
                 required property var modelData
                 readonly property bool editing: Playlists.editingId === row.modelData.id
                 readonly property alias sidebarItem: item
-                readonly property alias nameField: nameField
+                readonly property alias nameField: nameInput
 
                 objectName: "playlist-" + row.modelData.id
                 width: column.width
-                height: editing ? nameField.implicitHeight + Theme.space2 : item.implicitHeight
+                height: editing ? nameInput.implicitHeight + Theme.space2 : item.implicitHeight
 
                 SidebarItem {
                     id: item
@@ -165,7 +165,7 @@ Item {
                 }
 
                 TextField {
-                    id: nameField
+                    id: nameInput
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.leftMargin: Theme.space3

@@ -31,16 +31,10 @@ using auralis::test::startsWithThenSilence;
 using State = PlaybackService::State;
 using Choice = PlaybackServiceImpl::OutputChoice;
 
-namespace {
+using auralis::test::cd;
+using auralis::test::MemoryFactory;
 
-AudioFormat cd() {
-    AudioFormat format;
-    format.rate = 44100;
-    format.bits = 16;
-    format.container = 16;
-    format.channels = 2;
-    return format;
-}
+namespace {
 
 AudioFormat floatFormat() {
     AudioFormat format = cd();
@@ -49,18 +43,6 @@ AudioFormat floatFormat() {
     format.isFloat = true;
     return format;
 }
-
-/// 副檔名 .mem 的音源，格式由測試指定。
-class MemoryFactory final : public auralis::ISourceFactory {
-public:
-    QString name() const override { return QStringLiteral("記憶體"); }
-    QStringList extensions() const override { return {QStringLiteral("mem")}; }
-    auralis::Result<std::unique_ptr<auralis::IAudioSource>> open(const QString& path) override {
-        const auto& [format, data] = tracks.at(path);
-        return std::unique_ptr<auralis::IAudioSource>(std::make_unique<MemorySource>(format, data));
-    }
-    std::map<QString, std::pair<AudioFormat, QByteArray>> tracks;
-};
 
 /// 一個測試裝置的設定：被佔用、播放中被拔除、不收浮點、路徑本身改變訊號。
 struct DeviceState {
@@ -169,9 +151,12 @@ struct Fixture {
     bool drive(const std::function<bool()>& condition, int timeoutMs = 20000) {
         const auto deadline =
             std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        // 開始播放在背景開檔（T-113）：先等它做完，條件才不會在開始之前就成立
+        service.waitForStart();
         while (!condition() && std::chrono::steady_clock::now() < deadline) {
             QCoreApplication::processEvents();
             service.poll();
+            service.waitForStart();
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
         QCoreApplication::processEvents();

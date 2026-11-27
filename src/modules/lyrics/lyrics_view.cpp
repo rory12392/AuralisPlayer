@@ -25,6 +25,14 @@ QString sourceKey(LyricsSource source) {
     }
     return QStringLiteral("embedded");
 }
+
+/// 全螢幕主題的設定值（AC-17-6）：不認得的值當成深色（v1.0 的行為）。
+QString validFullscreenTheme(const QString& theme) {
+    if (theme == QStringLiteral("light") || theme == QStringLiteral("follow")) {
+        return theme;
+    }
+    return QStringLiteral("dark");
+}
 } // namespace
 
 LyricsView::LyricsView(LyricsLoader& loader, PlaybackService& playback, ModuleSettings* settings,
@@ -34,6 +42,11 @@ LyricsView::LyricsView(LyricsLoader& loader, PlaybackService& playback, ModuleSe
     connect(&loader, &LyricsLoader::changed, this, &LyricsView::reload);
     // 跳轉後引擎回報的就是目標位置，所以拖曳進度列後下一次通知就跳到對應行（AC-15-2）
     connect(&playback, &PlaybackService::positionChanged, this, &LyricsView::updateLine);
+    // 全螢幕主題只在這裡讀一次：之後只有本程式自己改（設定頁、T 鍵、切換鈕）
+    if (m_settings) {
+        m_fullscreenTheme = validFullscreenTheme(
+            m_settings->value(QStringLiteral("fullscreenTheme"), QString()).toString());
+    }
     reload();
 }
 
@@ -81,6 +94,17 @@ void LyricsView::setSaveLrc(bool enabled) {
     emit changed();
 }
 
+void LyricsView::setFullscreenTheme(const QString& theme) {
+    const QString value = validFullscreenTheme(theme);
+    if (m_settings) {
+        m_settings->setValue(QStringLiteral("fullscreenTheme"), value);
+    }
+    if (value != m_fullscreenTheme) {
+        m_fullscreenTheme = value;
+        emit fullscreenThemeChanged();
+    }
+}
+
 void LyricsView::retry() {
     if (m_loader) {
         m_loader->reload();
@@ -126,6 +150,10 @@ void LyricsView::updateLine(qint64 positionMs) {
 
 QString LyricsView::fullscreenBackdrop() const {
     return m_backdrop ? m_backdrop->color() : backdropColor(std::nullopt);
+}
+
+QString LyricsView::fullscreenCoverColor() const {
+    return m_backdrop ? m_backdrop->coverColor() : QString();
 }
 
 void LyricsView::setBackdrop(BackdropLoader* backdrop) {

@@ -3,9 +3,8 @@
 #include "soak.h"
 
 #include "audio/capture_backend.h"
+#include "dop_test_sink.h"
 #include "ui/ui_registry_impl.h"
-
-#include <auralis/dsd.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -41,40 +40,6 @@ SoakResult cleanResult() {
     result.underruns = 0;
     return result;
 }
-
-/// 測試用的 DoP 包裝器（不記狀態）：每個 DSD 樣本框變成兩個 24-in-32 樣本框，標記 0x05、0xFA。
-class TestDopSink final : public auralis::DsdSink {
-public:
-    QString name() const override { return QStringLiteral("DoP（測試）"); }
-    auralis::Result<AudioFormat> open(const auralis::DsdFormat& format) override {
-        m_channels = format.channels;
-        AudioFormat out;
-        out.rate = format.dsdRate / 16;
-        out.bits = 24;
-        out.container = 32;
-        out.channels = format.channels;
-        return out;
-    }
-    qint64 maxOutputFrames(qint64 dsdFrames) const noexcept override { return dsdFrames * 2; }
-    qint64 convert(const std::byte* dsd, qint64 dsdFrames, std::byte* out) noexcept override {
-        const auto* in = reinterpret_cast<const quint8*>(dsd);
-        auto* samples = reinterpret_cast<quint32*>(out);
-        for (qint64 f = 0; f < dsdFrames; ++f) {
-            for (int half = 0; half < 2; ++half) {
-                const quint32 mark = half == 0 ? 0x05u : 0xFAu;
-                for (int ch = 0; ch < m_channels; ++ch) {
-                    const quint8* bytes = in + (f * m_channels + ch) * 4 + half * 2;
-                    *samples++ =
-                        (mark << 24) | (quint32{bytes[0]} << 16) | (quint32{bytes[1]} << 8);
-                }
-            }
-        }
-        return dsdFrames * 2;
-    }
-
-private:
-    int m_channels = 0;
-};
 
 AudioFormat pcm24() {
     AudioFormat format;
@@ -131,8 +96,8 @@ TEST_CASE("AC-04-6：不連續檢查：DoP 標記要一框一框交替，斷掉�
 }
 
 TEST_CASE("AC-04-5：soak 經 DSD 包裝器播 DSD64，和 PCM 交替，沒有欠載與不連續") {
-    const auto result =
-        runSoak(auralis::app::kMinSoakSeconds, true, std::make_shared<TestDopSink>());
+    const auto result = runSoak(auralis::app::kMinSoakSeconds, true,
+                                std::make_shared<auralis::test::StatelessDopSink>());
     INFO(soakErrors(result).join(QStringLiteral("；")).toStdString());
     CHECK(soakErrors(result).isEmpty());
     CHECK(result.dsdSkipped.isEmpty());

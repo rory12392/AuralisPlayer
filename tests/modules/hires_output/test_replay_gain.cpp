@@ -4,6 +4,7 @@
 #include "replay_gain.h"
 #include "replay_gain_controller.h"
 #include "replay_gain_processor.h"
+#include "test_qt_app.h"
 
 #include <auralis/library_query.h>
 #include <auralis/module_database.h>
@@ -35,12 +36,7 @@ using namespace auralis::mod::out;
 namespace {
 
 void ensureApp() {
-    static int argc = 1;
-    static char name[] = "auralis_out_tests";
-    static char* argv[] = {name, nullptr};
-    if (QCoreApplication::instance() == nullptr) {
-        new QCoreApplication(argc, argv);
-    }
+    auralis::test::ensureQtApp("auralis_out_tests");
 }
 
 class MemorySettings final : public auralis::ModuleSettings {

@@ -26,36 +26,10 @@ using Fixture = auralis::test::ImportFixture;
 namespace {
 
 /// 音樂庫的替身：tracks() 與 audioFilePath() 記錄呼叫次數。
-class CueLibrary final : public auralis::LibraryQuery {
+class CueLibrary final : public auralis::test::RefsLibrary {
 public:
-    QList<TrackRef> refs;
     QHash<QString, QString> audioOf; ///< .cue 路徑 → 整軌檔
-    mutable int tracksCalls = 0;
     mutable QStringList audioCalls;
-    auralis::Result<std::optional<TrackInfo>> findByIdentity(const QString&,
-                                                             quint32) const override {
-        return std::optional<TrackInfo>();
-    }
-    auralis::Result<QList<TrackInfo>> tracks(const auralis::TrackFilter&) const override {
-        ++tracksCalls;
-        QList<TrackInfo> result;
-        for (const TrackRef& ref : refs) {
-            TrackInfo info;
-            info.ref = ref;
-            result.append(info);
-        }
-        return result;
-    }
-    auralis::Result<QList<auralis::AlbumInfo>> albums() const override {
-        return QList<auralis::AlbumInfo>();
-    }
-    auralis::Result<QStringList> artists() const override { return QStringList(); }
-    auralis::Result<QList<auralis::FolderInfo>> folders(qint64) const override {
-        return QList<auralis::FolderInfo>();
-    }
-    auralis::Result<QString> readEmbeddedLyrics(const TrackRef&) const override {
-        return QString();
-    }
     auralis::Result<QString> audioFilePath(const TrackRef& ref) const override {
         audioCalls.append(ref.path);
         if (!audioOf.contains(ref.path)) {

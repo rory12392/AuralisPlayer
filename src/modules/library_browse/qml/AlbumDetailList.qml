@@ -45,12 +45,12 @@ ListView {
     // 一組專輯的高度不固定：一格滾輪捲「系統行數」列曲目（組內的曲目列是緊湊列）
     WheelScroll { flickable: list; lineHeight: Theme.rowHeightCompact }
 
-    readonly property alias selection: selection
+    readonly property alias selection: trackSelection
     /// 狀態列左側的選取說明（頁面的 statusTextLeft）
-    readonly property string selectionText: ListActions.statusText(selection.trackCount)
+    readonly property string selectionText: ListActions.statusText(trackSelection.trackCount)
 
     TrackSelection {
-        id: selection
+        id: trackSelection
         model: list.model
     }
 
@@ -60,7 +60,7 @@ ListView {
 
     readonly property var actions: ({
         list: list,
-        selection: selection,
+        selection: trackSelection,
         menu: menu,
         player: Player,
         contain: ListView.Contain,
@@ -83,19 +83,19 @@ ListView {
         required property var model
 
         readonly property bool current: ListView.isCurrentItem && list.activeFocus
-        readonly property bool selected: selection.revision >= 0 && selection.isSelected(group.index)
+        readonly property bool selected: trackSelection.revision >= 0 && trackSelection.isSelected(group.index)
 
         width: ListView.view.width
         height: Math.max(list.coverSize, trackColumn.height) + 2 * Theme.space4 + Theme.hairline
         Accessible.role: Accessible.ListItem
         Accessible.name: [group.model.title, group.model.artist].filter(part => part.length > 0).join(" ")
 
-        count: group.selected ? selection.trackCount : selection.rowTrackCount(group.index)
-        query: group.dragging ? selection.query() : ""
-        tracks: group.dragging && !selection.queryOnly ? selection.tracks() : []
+        count: group.selected ? trackSelection.trackCount : trackSelection.rowTrackCount(group.index)
+        query: group.dragging ? trackSelection.query() : ""
+        tracks: group.dragging && !trackSelection.queryOnly ? trackSelection.tracks() : []
         onDraggingChanged: {
             if (group.dragging)
-                selection.ensureSelected(group.index)
+                trackSelection.ensureSelected(group.index)
         }
 
         TapHandler {

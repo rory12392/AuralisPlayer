@@ -15,12 +15,12 @@ Item {
 
     // 專輯的來源：LibraryAlbums 或 LibraryArtists（T-23），見 AlbumGrid.source
     property var source: LibraryAlbums
-    readonly property alias selection: selection
+    readonly property alias selection: trackSelection
     /// 狀態列左側的選取說明（頁面的 statusTextLeft）
-    readonly property string selectionText: ListActions.statusText(selection.trackCount)
+    readonly property string selectionText: ListActions.statusText(trackSelection.trackCount)
 
     TrackSelection {
-        id: selection
+        id: trackSelection
         model: list.model
     }
 
@@ -30,7 +30,7 @@ Item {
 
     readonly property var actions: ({
         list: list,
-        selection: selection,
+        selection: trackSelection,
         menu: menu,
         player: Player,
         contain: ListView.Contain,
@@ -54,7 +54,7 @@ Item {
     }
 
     ListHeader {
-        id: header
+        id: listHeader
         anchors { left: parent.left; right: parent.right; top: parent.top }
         columns: view.columns
     }
@@ -62,7 +62,7 @@ Item {
     ListView {
         id: list
         objectName: "albumList"
-        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom }
+        anchors { left: parent.left; right: parent.right; top: listHeader.bottom; bottom: parent.bottom }
         clip: true
         // 關閉程式時單例可能比頁面先被拆掉（source 變 null），繫結要防呆
         model: view.source ? view.source.albums : null
@@ -91,13 +91,13 @@ Item {
 
             width: ListView.view.width
             height: row.height
-            count: selection.revision >= 0 && selection.isSelected(drag.index) ? selection.trackCount
-                                                                               : selection.rowTrackCount(drag.index)
-            query: drag.dragging ? selection.query() : ""
-            tracks: drag.dragging && !selection.queryOnly ? selection.tracks() : []
+            count: trackSelection.revision >= 0 && trackSelection.isSelected(drag.index) ? trackSelection.trackCount
+                                                                               : trackSelection.rowTrackCount(drag.index)
+            query: drag.dragging ? trackSelection.query() : ""
+            tracks: drag.dragging && !trackSelection.queryOnly ? trackSelection.tracks() : []
             onDraggingChanged: {
                 if (drag.dragging)
-                    selection.ensureSelected(drag.index)
+                    trackSelection.ensureSelected(drag.index)
             }
 
             TrackRow {
@@ -105,7 +105,7 @@ Item {
                 width: parent.width
                 activeFocusOnTab: false
                 focusPolicy: Qt.NoFocus
-                highlighted: selection.revision >= 0 && selection.isSelected(drag.index)
+                highlighted: trackSelection.revision >= 0 && trackSelection.isSelected(drag.index)
                 columns: view.columns
                 title: drag.model.title
                 artist: drag.model.artist

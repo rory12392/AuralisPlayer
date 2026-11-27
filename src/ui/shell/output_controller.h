@@ -60,7 +60,6 @@ class OutputController : public QObject {
     Q_PROPERTY(QString sourceText READ sourceText NOTIFY changed)
     /// 訊號路徑的「處理」：「無」或改變訊號的處理（例：共享模式）。
     Q_PROPERTY(QString processingText READ processingText NOTIFY changed)
-    Q_PROPERTY(bool bitPerfect READ bitPerfect NOTIFY changed)
     /// 狀態標籤的文字與樣式（amber 位元完美、neutral 原因、signal 錯誤、idle 沒有在播）。
     Q_PROPERTY(QString statusText READ statusText NOTIFY changed)
     Q_PROPERTY(QString statusVariant READ statusVariant NOTIFY changed)

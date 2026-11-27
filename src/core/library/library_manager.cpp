@@ -3,6 +3,7 @@
 #include "library/file_enumerator.h"
 #include "library/library_query_impl.h"
 #include "library/library_scanner.h"
+#include "library/meta_backfill.h"
 #include "library/sqlite_connection.h"
 
 #include <auralis/job_runner.h>
@@ -26,6 +27,8 @@ namespace {
 
 /// 進度送回 UI 執行緒的最短間隔（4 萬首時避免每首一個事件）
 constexpr qint64 kProgressIntervalMs = 100;
+/// 結束時等補值工作的上限：取消後最多再處理完一首（讀一個檔頭或一個 .cue 的整軌檔）
+constexpr int kBackfillCloseTimeoutMs = 7000;
 
 /// child 是否等於 parent 或在 parent 底下（都是 pathKey）。
 bool coversKey(const QString& parent, const QString& child) {
@@ -57,6 +60,46 @@ LibraryManager::~LibraryManager() {
         m_state->cancel = true;
         m_state->done.acquire();
     }
+    // 補值工作在每一首之間檢查取消；排隊中還沒開始的過了閘門就直接結束
+    if (m_backfillJob != 0) {
+        m_jobs.cancel(m_backfillJob);
+    }
+    if (!m_backfillGate->close(kBackfillCloseTimeoutMs)) {
+        qCWarning(lcLibrary) << "補值工作沒有在時限內結束";
+    }
+}
+
+void LibraryManager::startMetaBackfill() {
+    if (m_backfillJob != 0 || m_databasePath.isEmpty()) {
+        return;
+    }
+    const QString databasePath = m_databasePath;
+    auto work = [this, gate = m_backfillGate, databasePath](JobContext& context) {
+        const JobGate::Pass pass(*gate);
+        if (!pass) {
+            return;
+        }
+        auto db = SqliteConnection::open(databasePath);
+        if (!db) {
+            throw std::runtime_error(db.error().message.toStdString());
+        }
+        BackfillCallbacks callbacks;
+        callbacks.cancelled = [&context] {
+            return context.isCancelled();
+        };
+        callbacks.progress = [&context](int done, int total) {
+            context.reportProgress(total == 0 ? 1.0 : double(done) / total);
+        };
+        const BackfillResult result = runMetaBackfill(*db.value(), callbacks);
+        if (result.updated > 0) {
+            qCInfo(lcLibrary).noquote()
+                << "已補齊位元率與加入時間：" << result.updated << "/" << result.total;
+            // 閘門開著表示這個物件還在；送到 UI 執行緒時它已解構的話 Qt 會丟掉這個呼叫
+            QMetaObject::invokeMethod(
+                this, [this] { m_query.notifyScanFinished(); }, Qt::QueuedConnection);
+        }
+    };
+    m_backfillJob = m_jobs.submit(QStringLiteral("補齊位元率與加入時間"), std::move(work));
 }
 
 void LibraryManager::ensureLoaded() {
@@ -258,6 +301,13 @@ void LibraryManager::startNext() {
 }
 
 void LibraryManager::onJobFinished(quint64 id, bool failed, const QString& error) {
+    if (id != 0 && id == m_backfillJob) {
+        m_backfillJob = 0;
+        if (failed) {
+            qCWarning(lcLibrary).noquote() << "補值工作失敗：" << error;
+        }
+        return;
+    }
     if (!m_current || id != m_currentJob) {
         return;
     }

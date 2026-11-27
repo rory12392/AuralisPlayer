@@ -1,10 +1,14 @@
 // 「所有曲目」頁（S-07，T-21）用的 C++ 部分：清單列的文字（長度、取樣率／位元）、模型的顯示角色、
-// 從某一首開始播放與正在播放的標記（LibraryPlayback）。
+// 從某一首開始播放與正在播放的標記（LibraryPlayback）。T-115：位元率與加入時間兩欄的文字、角色與排序。
 #include "fake_playback_service.h"
 #include "lib_test_helpers.h"
 #include "library_playback.h"
 #include "search_controller.h"
 #include "track_text.h"
+
+#include <QDateTime>
+
+#include <mutex>
 
 using namespace auralis;
 using namespace auralis::test;
@@ -35,6 +39,10 @@ public:
         return std::optional<TrackInfo>();
     }
     Result<QList<TrackInfo>> tracks(const TrackFilter& filter) const override {
+        {
+            std::lock_guard lock(m_mutex);
+            m_lastFilter = filter;
+        }
         const int limit = filter.limit < 0 ? static_cast<int>(m_tracks.size()) : filter.limit;
         return m_tracks.mid(filter.offset, limit);
     }
@@ -42,9 +50,16 @@ public:
     Result<QStringList> artists() const override { return QStringList(); }
     Result<QList<FolderInfo>> folders(qint64) const override { return QList<FolderInfo>(); }
     Result<QString> readEmbeddedLyrics(const TrackRef&) const override { return QString(); }
+    /// 最近一次 tracks() 收到的條件（T-115：排序要交給 LibraryQuery）。
+    TrackFilter lastFilter() const {
+        std::lock_guard lock(m_mutex);
+        return m_lastFilter;
+    }
 
 private:
     QList<TrackInfo> m_tracks;
+    mutable std::mutex m_mutex;
+    mutable TrackFilter m_lastFilter;
 };
 
 } // namespace
@@ -117,5 +132,87 @@ TEST_CASE("S-07：正在播放的曲目由 currentKey 標記，換曲時更新")
     CHECK(player.currentKey() == LibraryPlayback::keyOf(QStringLiteral("C:/t/2.flac"), 0));
     CHECK(LibraryPlayback::keyOf(QStringLiteral("a"), 1) !=
           LibraryPlayback::keyOf(QStringLiteral("a"), 0));
+    search.shutdown();
+}
+
+TEST_CASE("AC-10-5：位元率寫成「1,411 kbps」，加入時間是本地時區的日期，不知道時空白") {
+    using auralis::mod::lib::addedText;
+    using auralis::mod::lib::bitrateText;
+    CHECK(bitrateText(1411) == QStringLiteral("1,411 kbps"));
+    CHECK(bitrateText(320) == QStringLiteral("320 kbps"));
+    CHECK(bitrateText(std::nullopt).isEmpty());
+    const qint64 ms = QDateTime(QDate(2026, 11, 26), QTime(23, 30)).toMSecsSinceEpoch();
+    CHECK(addedText(ms) == QStringLiteral("2026-11-26")); // 本地 23:30，不是 UTC 的日期
+    CHECK(addedText(std::nullopt).isEmpty());
+}
+
+TEST_CASE("AC-10-5：清單模型提供位元率與加入時間（值與顯示文字），沒有值時空白") {
+    SearchResultsModel model;
+    TrackInfo known = makeTrack("C:/m/1.mp3", "MP3", 44100, 0);
+    known.bitrate = 320;
+    known.addedAt = QDateTime(QDate(2025, 1, 2), QTime(8, 0)).toMSecsSinceEpoch();
+    model.reset({known, makeTrack("C:/m/2.flac", "FLAC", 44100, 16)});
+    const auto roles = model.roleNames();
+    const auto value = [&](int row, const char* name) {
+        return model.data(model.index(row), roles.key(QByteArray(name)));
+    };
+    CHECK(value(0, "bitrate").toInt() == 320);
+    CHECK(value(0, "addedAt").toLongLong() == known.addedAt.value());
+    CHECK(value(0, "bitrateText").toString() == QStringLiteral("320 kbps"));
+    CHECK(value(0, "addedText").toString() == QStringLiteral("2025-01-02"));
+    // 補值中或未知：值是 undefined、文字空白
+    CHECK_FALSE(value(1, "bitrate").isValid());
+    CHECK_FALSE(value(1, "addedAt").isValid());
+    CHECK(value(1, "bitrateText").toString().isEmpty());
+    CHECK(value(1, "addedText").toString().isEmpty());
+}
+
+TEST_CASE("AC-10-5：依位元率或加入時間排序時查詢帶排序鍵與升降冪，換排序重查、清除搜尋不清排序") {
+    ensureApp();
+    ListLibrary library({makeTrack("C:/m/0.flac", "FLAC", 44100, 16)});
+    SearchController search(library);
+    int ready = 0;
+    QObject::connect(&search, &SearchController::resultsReady, [&ready] { ++ready; });
+    const auto waitQuery = [&] {
+        const int before = ready;
+        REQUIRE(waitFor([&] { return ready > before && search.complete(); }));
+    };
+    int sortChanges = 0;
+    QObject::connect(&search, &SearchController::sortChanged, [&] { ++sortChanges; });
+
+    search.refresh();
+    waitQuery();
+    CHECK(search.sort().isEmpty());
+    CHECK(library.lastFilter().sort == TrackSort::Default);
+
+    search.sortBy(QStringLiteral("bitrate"), false);
+    waitQuery();
+    CHECK(search.sort() == QStringLiteral("bitrate"));
+    CHECK_FALSE(search.descending());
+    CHECK(library.lastFilter().sort == TrackSort::Bitrate);
+    CHECK_FALSE(library.lastFilter().descending);
+
+    search.sortBy(QStringLiteral("addedAt"), true);
+    waitQuery();
+    CHECK(library.lastFilter().sort == TrackSort::AddedAt);
+    CHECK(library.lastFilter().descending);
+    CHECK(sortChanges == 2);
+
+    // 搜尋與篩選換了，排序照舊
+    search.setFormat(QStringLiteral("FLAC"));
+    waitQuery();
+    search.clear();
+    waitQuery();
+    CHECK(search.sort() == QStringLiteral("addedAt"));
+    CHECK(library.lastFilter().sort == TrackSort::AddedAt);
+
+    // 回到預設順序；不認得的鍵也當預設
+    search.sortBy(QString(), false);
+    waitQuery();
+    CHECK(library.lastFilter().sort == TrackSort::Default);
+    CHECK_FALSE(library.lastFilter().descending);
+    search.sortBy(QStringLiteral("title"), true);
+    CHECK(search.sort().isEmpty());
+    CHECK_FALSE(search.descending());
     search.shutdown();
 }

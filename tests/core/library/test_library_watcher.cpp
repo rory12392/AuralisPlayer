@@ -6,6 +6,7 @@
 #include "library/library_watcher.h"
 #include "library/migrator.h"
 #include "library_fixtures.h"
+#include "test_qt_app.h"
 
 #include <auralis/job_runner.h>
 
@@ -27,12 +28,7 @@ using namespace auralis::test;
 namespace {
 
 void ensureApp() {
-    static int argc = 1;
-    static char name[] = "auralis_core_tests";
-    static char* argv[] = {name, nullptr};
-    if (QCoreApplication::instance() == nullptr) {
-        new QCoreApplication(argc, argv); // 整個測試行程共用，不釋放
-    }
+    auralis::test::ensureQtApp("auralis_core_tests");
 }
 
 /// 測試暫存資料夾\t-10\watch\<name>；fresh 時先清掉上一輪留下的。

@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Auralis.Ui
 import Auralis.Lib
+import "TrackColumnCatalog.js" as TrackColumnCatalog
 
 // 所有曲目與搜尋結果（畫面規格 S-07 的基本版，US-09）：篩選列、表頭、虛擬化的曲目清單。
 // 資料是 LibrarySearch 的結果（條件全空＝全部曲目）；雙擊或 Enter 從這首開始播放（LibraryPlayback）。
@@ -9,6 +10,7 @@ import Auralis.Lib
 // 表頭與清單在 LibraryTrackList（T-23 抽出來給資料夾頁共用）。
 // 選取、拖放與右鍵選單在 LibraryTrackList（T-25）；全選超過 5,000 首時只帶搜尋條件。
 // 頁面工具列的「欄位」與表頭拖曳欄寬（T-90）：存 LIB/trackColumns，和資料夾頁共用。
+// 位元率與加入時間兩欄可以按表頭排序（T-115，只有這一頁；排序不存設定）。
 Item {
     id: page
     objectName: "libraryTracksPage"
@@ -68,6 +70,23 @@ Item {
                                              LibrarySearch.year, LibrarySearch.format, LibrarySearch.sampleRate)
         complete: LibrarySearch.complete
         onPlayRequested: row => page.playRow(row)
+        // T-115：位元率與加入時間的表頭排序：按一次遞增、再按遞減、第三次回到預設順序
+        sortEnabled: true
+        sortColumn: LibrarySearch.sort
+        sortAscending: !LibrarySearch.descending
+        onSortRequested: id => {
+            if (LibrarySearch.sort !== id)
+                LibrarySearch.sortBy(id, false)
+            else if (!LibrarySearch.descending)
+                LibrarySearch.sortBy(id, true)
+            else
+                LibrarySearch.sortBy("", false)
+        }
+        // 拿掉正在排序的欄（「欄位」選單）時回到預設順序，免得順序看不出依據
+        onColumnsChanged: {
+            if (LibrarySearch.sort.length > 0 && !TrackColumnCatalog.contains(list.columns, LibrarySearch.sort))
+                LibrarySearch.sortBy("", false)
+        }
 
         // 新查詢的結果回來時回到頂端（同一個查詢分批接上不動）
         Connections {

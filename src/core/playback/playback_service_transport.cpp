@@ -13,7 +13,7 @@ constexpr qint64 kRestartThresholdMs = 3000;
 } // namespace
 
 void PlaybackServiceImpl::play() {
-    if (m_state == State::Playing) {
+    if (m_state == State::Playing || m_pendingEntry) {
         return;
     }
     const auto current = m_queue.current();
@@ -24,6 +24,14 @@ void PlaybackServiceImpl::play() {
 }
 
 void PlaybackServiceImpl::pause() {
+    if (m_pendingEntry) {
+        // 還在開檔：取消這次開始；換首途中暫停的，停在原本那首的位置
+        stopEngine();
+        if (m_state == State::Playing) {
+            setState(State::Paused);
+        }
+        return;
+    }
     if (m_state != State::Playing) {
         return;
     }
@@ -37,7 +45,7 @@ void PlaybackServiceImpl::pause() {
 }
 
 void PlaybackServiceImpl::togglePause() {
-    if (m_state == State::Playing) {
+    if (m_state == State::Playing || m_pendingEntry) {
         pause();
     } else {
         play();
@@ -52,7 +60,8 @@ void PlaybackServiceImpl::stop() {
 }
 
 void PlaybackServiceImpl::next() {
-    const auto current = m_queue.current();
+    // 還在開檔時以要開的那首為準（連按兩次下一首跳兩首）
+    const auto current = m_pendingEntry ? m_pendingEntry : m_queue.current();
     const auto target = current ? m_queue.nextAfter(current->id, false) : m_queue.entryAt(0);
     if (target) {
         startEntry(target);
@@ -60,12 +69,13 @@ void PlaybackServiceImpl::next() {
 }
 
 void PlaybackServiceImpl::previous() {
-    const auto current = m_queue.current();
+    const auto current = m_pendingEntry ? m_pendingEntry : m_queue.current();
     if (!current) {
         return;
     }
     const auto before = m_queue.previousBefore(current->id);
-    if (m_positionMs > kRestartThresholdMs || !before) {
+    const qint64 position = m_pendingEntry ? m_pendingOffset : m_positionMs;
+    if (position > kRestartThresholdMs || !before) {
         seek(0);
         return;
     }
@@ -74,6 +84,11 @@ void PlaybackServiceImpl::previous() {
 
 void PlaybackServiceImpl::seek(qint64 positionMs) {
     positionMs = std::max<qint64>(0, positionMs);
+    if (m_pendingEntry) {
+        // 還在開檔：改成從新位置開始（長度要開了才知道）
+        startEntry(m_pendingEntry, positionMs);
+        return;
+    }
     if (m_durationMs >= 0) {
         positionMs = std::min(positionMs, m_durationMs);
     }

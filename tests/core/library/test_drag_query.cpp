@@ -3,6 +3,7 @@
 #include "library/library_query_impl.h"
 #include "library/migrator.h"
 #include "library_fixtures.h"
+#include "test_qt_app.h"
 
 #include <auralis/job_runner.h>
 
@@ -21,12 +22,7 @@ using namespace auralis::test;
 namespace {
 
 void ensureApp() {
-    static int argc = 1;
-    static char name[] = "auralis_core_tests";
-    static char* argv[] = {name, nullptr};
-    if (QCoreApplication::instance() == nullptr) {
-        new QCoreApplication(argc, argv); // 整個測試行程共用，不釋放
-    }
+    auralis::test::ensureQtApp("auralis_core_tests");
 }
 
 struct Library {
